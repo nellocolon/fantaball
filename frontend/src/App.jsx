@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, createContext, useContext } from "react";
 import { toPng } from "html-to-image";
-import { getPlayers, getLeaderboard, saveRoster, getMyRoster, saveLineup, getLineup, getFixtures, getScorers, getAssists, getCards, getStandings, getBracket, HAS_SUPABASE, computeFormationLock } from "./lib/data";
+import { getPlayers, getLeaderboard, saveRoster, getMyRoster, saveLineup, getLineup, getFixtures, getScorers, getAssists, getCards, getStandings, getBracket, getBounties, HAS_SUPABASE, computeFormationLock } from "./lib/data";
 import { initAuth, onAuthChange, signInWithX, signOut, connectWallet } from "./lib/auth";
 
 // ─── ICON SYSTEM (monochrome SVG, inherits currentColor) ──────────────────
@@ -1908,6 +1908,13 @@ function Build({squad,counts,spent,budget,toggle,captain,setCaptain,vice,setVice
         </button>
       </div>
 
+      <div style={{padding:"0 16px 6px"}}>
+        <div style={S.refundNote}>
+          <span style={{color:C.orange,display:"inline-flex",flexShrink:0,marginTop:1}}><Icon name="info" size={14}/></span>
+          <span>If a player is knocked out of the real World Cup, they leave your squad and you get <b style={{color:C.ink}}>50% of their credits back</b>. The slot stays open until the next transfer window.</span>
+        </div>
+      </div>
+
       {view==="market" ? (
         <>
           <div style={{...S.marketStick,top:stickTop}}>
@@ -2520,14 +2527,23 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,setShar
 }
 
 function PlayerCard({p,cap,vice,jersey, selected, onCVCtrl}){
+  // Single top-right control: shows the crown when the player is neither C nor V,
+  // and turns into a solid C / V badge once assigned (replacing the crown, no overlap).
+  // When onCVCtrl is provided (Pitch tab) it stays tappable to reopen the picker.
+  const isCV = cap || vice;
+  const cvStyle = cap
+    ? {background:C.orange,color:"#fff",border:"none"}
+    : {background:"#fff",color:C.ink,border:`1px solid ${C.line}`};
   return (
     <div style={S.pcWrap}>
-      {(cap||vice)&&<div style={{...S.pcBadge,background:cap?C.orange:"#fff",
-        color:cap?"#fff":C.ink,border:cap?"none":`1px solid ${C.line}`}}>{cap?"C":"V"}</div>}
-      {onCVCtrl && (
-        <button onClick={(e)=>{e.stopPropagation(); onCVCtrl();}} style={{position:"absolute",top:-4,right:-2,width:18,height:18,borderRadius:"50%",border:`1px solid ${C.line}`,background:C.card,color:C.orange,display:"grid",placeItems:"center",zIndex:5}} title="Set Captain / Vice">
-          <Icon name="crown" size={11}/>
+      {onCVCtrl ? (
+        <button onClick={(e)=>{e.stopPropagation(); onCVCtrl();}}
+          style={{...S.pcCtrl, ...(isCV?cvStyle:{background:C.card,color:C.orange,border:`1px solid ${C.line}`})}}
+          title="Set Captain / Vice">
+          {isCV ? (cap?"C":"V") : <Icon name="crown" size={11}/>}
         </button>
+      ) : (
+        isCV && <div style={{...S.pcCtrl, ...cvStyle, cursor:"default"}}>{cap?"C":"V"}</div>
       )}
       <div style={{...S.pcCard, ...(selected?{outline:`2px solid ${C.orange}`, outlineOffset:1}:{}) }}>
         {/* jersey portrait area */}
@@ -2657,7 +2673,7 @@ function Ranks({setTab}){
         </button>
       </div>
 
-      <div style={{padding:"0 16px 14px"}}>
+      <div style={{padding:"0 16px 6px"}}>
         <div style={S.poolBanner}>
           <div>
             <div style={{fontSize:10,color:C.mute,letterSpacing:1.5,fontWeight:700}}>LIVE PRIZE POOL</div>
@@ -2666,10 +2682,20 @@ function Ranks({setTab}){
               <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:C.mute,letterSpacing:.5}}>SOL</div>
             </div>
           </div>
-          <button onClick={()=>setShowTable(true)} style={S.howItWorksBtn}>
-            How it works <span style={{display:"inline-flex"}}><Icon name="chevron" size={16}/></span>
-          </button>
+          <div style={{fontSize:11,color:C.orangeDeep,fontWeight:700,background:C.orangeSoft,
+            padding:"6px 12px",borderRadius:20}}>TOP 100 PAID</div>
         </div>
+      </div>
+
+      {/* How it works — expandable inline, identical pattern to Pool/Quests */}
+      <div style={{padding:"0 16px 14px"}}>
+        <button onClick={()=>setShowTable(v=>!v)} style={S.howItWorksWide}>
+          How it works
+          <span style={{display:"inline-flex",transform:showTable?"rotate(180deg)":"none",transition:"transform .2s"}}>
+            <Icon name="chevron" size={16}/>
+          </span>
+        </button>
+        {showTable && <PrizeTableInline pool={pool} board={board}/>}
       </div>
 
       <div style={{padding:"0 16px"}}>
@@ -2728,53 +2754,45 @@ function Ranks({setTab}){
         </div>
       </div>
 
-      {showTable && <PrizeTableModal pool={pool} board={board} onClose={()=>setShowTable(false)}/>}
     </div>
   );
 }
 
-// ─── PRIZE TABLE MODAL (How it works → full top-100 with potential winnings) ──
-function PrizeTableModal({pool,board,onClose}){
-  // Build a full 1..100 table. Use real names where we have them (board), else a placeholder.
+// ─── PRIZE TABLE (inline expand under "How it works") ──
+function PrizeTableInline({pool,board}){
   const nameByRank={}; board.forEach(r=>{nameByRank[r.rank]=r.name;});
   const rows=Array.from({length:100},(_,i)=>{
     const rank=i+1;
     return { rank, name:nameByRank[rank]||`Rank ${rank}`, pct:prizePctForRank(rank), win:potentialWin(rank,pool) };
   });
   return (
-    <div style={S.modalBackdrop} onClick={onClose}>
-      <div style={{...S.modalSheet,maxHeight:"86vh",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-          <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:20,color:C.ink}}>Prize distribution</div>
-          <button onClick={onClose} style={S.iconBtn}><Icon name="x" size={18}/></button>
-        </div>
-        <p style={{margin:"0 0 12px",fontSize:12.5,color:C.mute,lineHeight:1.5}}>
-          The top 100 share the live pool of <b style={{color:C.ink}}>◎{pool} SOL</b>. Each position earns a fixed
-          share of the pool — payouts grow as the pool grows. Figures update live.
-        </p>
-        <div style={{display:"grid",gridTemplateColumns:"36px 1fr 56px 78px",gap:4,padding:"8px 10px",
-          borderBottom:`1px solid ${C.line}`,fontSize:10,fontWeight:800,color:C.mute,letterSpacing:.5,
-          fontFamily:"'Archivo Narrow',sans-serif",textAlign:"right"}}>
-          <span style={{textAlign:"left"}}>#</span><span style={{textAlign:"left"}}>MANAGER</span><span>SHARE</span><span>POTENTIAL</span>
-        </div>
-        <div style={{overflowY:"auto",flex:1,WebkitOverflowScrolling:"touch"}}>
-          {rows.map(r=>(
-            <div key={r.rank} style={{display:"grid",gridTemplateColumns:"36px 1fr 56px 78px",gap:4,
-              padding:"9px 10px",alignItems:"center",borderBottom:`1px solid ${C.line}`,textAlign:"right"}}>
-              <span style={{textAlign:"left",fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:13,
-                color:r.rank<=3?C.orange:C.mute}}>{r.rank}</span>
-              <span style={{textAlign:"left",fontFamily:"'Archivo',sans-serif",fontWeight:700,fontSize:12.5,
-                color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</span>
-              <span style={{fontSize:11.5,color:C.mute,fontWeight:700}}>{r.pct}%</span>
-              <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:13,color:C.orangeDeep}}>◎{r.win}</span>
-            </div>
-          ))}
-        </div>
-        <p style={{margin:"10px 0 0",fontSize:10.5,color:C.mute,lineHeight:1.5,textAlign:"center"}}>
-          Potential winnings are estimates based on the current pool and your rank right now. Final payouts
-          are settled on-chain at the end of the season.
-        </p>
+    <div style={{...S.tokenStat,padding:"14px 16px",marginTop:8}}>
+      <p style={{margin:"0 0 12px",fontSize:12.5,color:C.mute,lineHeight:1.5}}>
+        The top 100 share the live pool of <b style={{color:C.ink}}>◎{pool} SOL</b>. Each position earns a fixed
+        share of the pool — payouts grow as the pool grows. Figures update live.
+      </p>
+      <div style={{display:"grid",gridTemplateColumns:"36px 1fr 56px 78px",gap:4,padding:"8px 10px",
+        borderBottom:`1px solid ${C.line}`,fontSize:10,fontWeight:800,color:C.mute,letterSpacing:.5,
+        fontFamily:"'Archivo Narrow',sans-serif",textAlign:"right"}}>
+        <span style={{textAlign:"left"}}>#</span><span style={{textAlign:"left"}}>MANAGER</span><span>SHARE</span><span>POTENTIAL</span>
       </div>
+      <div style={{maxHeight:340,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+        {rows.map(r=>(
+          <div key={r.rank} style={{display:"grid",gridTemplateColumns:"36px 1fr 56px 78px",gap:4,
+            padding:"9px 10px",alignItems:"center",borderBottom:`1px solid ${C.line}`,textAlign:"right"}}>
+            <span style={{textAlign:"left",fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:13,
+              color:r.rank<=3?C.orange:C.mute}}>{r.rank}</span>
+            <span style={{textAlign:"left",fontFamily:"'Archivo',sans-serif",fontWeight:700,fontSize:12.5,
+              color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</span>
+            <span style={{fontSize:11.5,color:C.mute,fontWeight:700}}>{r.pct}%</span>
+            <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:13,color:C.orangeDeep}}>◎{r.win}</span>
+          </div>
+        ))}
+      </div>
+      <p style={{margin:"10px 0 0",fontSize:10.5,color:C.mute,lineHeight:1.5,textAlign:"center"}}>
+        Potential winnings are estimates based on the current pool and your rank right now. Final payouts
+        are settled on-chain at the end of the season.
+      </p>
     </div>
   );
 }
@@ -2985,38 +3003,34 @@ function ShareModal({squad,captain,vice,teamName,jersey,onClose}){
 // ─── QUESTS (pump.fun GO side-quests) ──────────────────────────────────────
 function Quests(){
   const [filter,setFilter]=useState("ALL");
-  // active bounties funded via pump.fun GO (30% of creator fees)
-  // each bounty pays ONE winner, chosen by pump.fun. Reach bounties spread the project;
-  // ladder bounties reward the competition's long tail.
-  const QUESTS=[
-    {id:1,cat:"REACH",title:"Spotlight Stream",
-      desc:"Run a sports/trading livestream with the $FANTABALL ticker banner on screen the whole time.",
-      reward:"◎1 SOL",timeLeft:"5d left",entrants:14,
-      deliver:"Public VOD ≥30 min · ticker readable throughout · avg viewers ≥ threshold",status:"live"},
-    {id:2,cat:"REACH",title:"Viral Post",
-      desc:"Post about Fantaball on X and pass 20,000 real views.",
-      reward:"◎1 SOL",timeLeft:"3d left",entrants:63,
-      deliver:"Post link + analytics screenshot showing ≥20k views + $FANTABALL tag",status:"live"},
-    {id:3,cat:"REACH",title:"TikTok Drop",
-      desc:"Make a TikTok explaining the project with the ticker visible on screen.",
-      reward:"◎1 SOL",timeLeft:"4d left",entrants:38,
-      deliver:"TikTok link + view count ≥ threshold + ticker visible",status:"live"},
-    {id:4,cat:"REACH",title:"Thread of the Week",
-      desc:"Write an explainer thread on the project or its mechanics that passes the engagement bar.",
-      reward:"◎0.5 SOL",timeLeft:"2d left",entrants:51,
-      deliver:"Thread link + impressions screenshot ≥ threshold",status:"live"},
-    {id:5,cat:"LADDER",title:"Bracket Oracle · R16",
-      desc:"Predict the most correct results of the Round of 16. One winner takes it.",
-      reward:"◎0.5 SOL",timeLeft:"starts GW5",entrants:0,
-      deliver:"Completed bracket before kickoff + correct count",status:"upcoming"},
-    {id:6,cat:"LADDER",title:"Man of the Matchday",
-      desc:"Highest single-matchday score across all managers. Resets every matchday.",
-      reward:"◎0.3 SOL",timeLeft:"6h left",entrants:312,
-      deliver:"Score screenshot + public profile link",status:"live"},
+  const [howOpen,setHowOpen]=useState(false);
+  // Bounties funded via pump.fun GO (30% of creator fees). Loaded from Supabase
+  // (table `bounties`) so they can be activated WITHOUT a code push: set go_url +
+  // active=true there and a bounty flips from SOON to ENTER. Demo fallback below.
+  const DEMO_QUESTS=[
+    {id:1,cat:"REACH",title:"Spotlight Stream",desc:"Run a sports/trading livestream with the $FANTABALL ticker banner on screen the whole time.",reward:1,deliver:"Public VOD ≥30 min · ticker readable throughout · avg viewers ≥ threshold",goUrl:null},
+    {id:2,cat:"REACH",title:"Viral Post",desc:"Post about Fantaball on X and pass 20,000 real views.",reward:1,deliver:"Post link + analytics screenshot showing ≥20k views + $FANTABALL tag",goUrl:null},
+    {id:3,cat:"REACH",title:"TikTok Drop",desc:"Make a TikTok explaining the project with the ticker visible on screen.",reward:1,deliver:"TikTok link + view count ≥ threshold + ticker visible",goUrl:null},
+    {id:4,cat:"REACH",title:"Thread of the Week",desc:"Write an explainer thread on the project or its mechanics that passes the engagement bar.",reward:0.5,deliver:"Thread link + impressions screenshot ≥ threshold",goUrl:null},
+    {id:5,cat:"LADDER",title:"Bracket Oracle · R16",desc:"Predict the most correct results of the Round of 16. One winner takes it.",reward:0.5,deliver:"Completed bracket before kickoff + correct count",goUrl:null},
+    {id:6,cat:"LADDER",title:"Man of the Matchday",desc:"Highest single-matchday score across all managers. Resets every matchday.",reward:0.3,deliver:"Score screenshot + public profile link",goUrl:null},
   ];
+  const [QUESTS,setQUESTS]=useState(DEMO_QUESTS);
+  useEffect(()=>{
+    let alive=true;
+    getBounties().then(rows=>{
+      if(!alive||!rows||!rows.length) return;
+      setQUESTS(rows.map(r=>({
+        id:r.id, cat:r.cat, title:r.title, desc:r.descr, reward:r.reward_sol,
+        deliver:r.deliver, goUrl:(r.active && r.go_url)?r.go_url:null,
+      })));
+    }).catch(e=>console.warn("getBounties, using demo:",e?.message||e));
+    return ()=>{alive=false;};
+  },[]);
   const cats=["ALL","REACH","LADDER"];
   const list=filter==="ALL"?QUESTS:QUESTS.filter(q=>q.cat===filter);
-  const totalFunding=QUESTS.filter(q=>q.status==="live").reduce((s,q)=>s+parseFloat(q.reward.replace("◎","")),0).toFixed(1);
+  const liveCount=QUESTS.filter(q=>q.goUrl).length;
+  const totalFunding=QUESTS.reduce((s,q)=>s+(q.reward||0),0).toFixed(1);
 
   return (
     <div style={{paddingBottom:24}}>
@@ -3042,7 +3056,7 @@ function Quests(){
               <div>
                 <div style={{fontSize:9,color:"#ffffff77",letterSpacing:1,fontWeight:700}}>LIVE BOUNTIES</div>
                 <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:20,color:"#fff"}}>
-                  {QUESTS.filter(q=>q.status==="live").length}
+                  {liveCount}
                 </div>
               </div>
               <div>
@@ -3065,19 +3079,21 @@ function Quests(){
 
       {/* quest cards */}
       <div style={{padding:"4px 16px 8px"}}>
-        {list.map(q=>(
-          <div key={q.id} style={{...S.questCard,opacity:q.status==="upcoming"?0.72:1}}>
+        {list.map(q=>{
+          const isLive=!!q.goUrl;
+          return (
+          <div key={q.id} style={{...S.questCard,opacity:isLive?1:0.82}}>
             <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
               <div style={{flex:1}}>
                 <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
                   <span style={S.questCat}>{q.cat}</span>
-                  {q.status==="upcoming" && <span style={S.csTag}>UPCOMING</span>}
+                  {!isLive && <span style={S.csTag}>SOON</span>}
                 </div>
                 <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:16,color:C.ink,marginTop:6}}>{q.title}</div>
                 <div style={{fontSize:13,color:C.mute,lineHeight:1.45,marginTop:3}}>{q.desc}</div>
               </div>
               <div style={{textAlign:"right",flexShrink:0}}>
-                <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:22,color:C.orange,lineHeight:1}}>{q.reward}</div>
+                <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:22,color:C.orange,lineHeight:1}}>◎{q.reward} SOL</div>
                 <div style={{fontSize:10,color:C.mute,marginTop:2}}>1 winner</div>
               </div>
             </div>
@@ -3089,44 +3105,58 @@ function Quests(){
             {/* footer */}
             <div style={{display:"flex",alignItems:"center",gap:12,marginTop:10}}>
               <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11.5,color:C.mute,fontWeight:600}}>
-                <Icon name="clock" size={13} style={{color:C.mute}}/>{q.timeLeft}
+                <Icon name="target" size={13} style={{color:C.mute}}/>{q.cat==="REACH"?"Spread the project":"Compete to win"}
               </span>
-              <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11.5,color:C.mute,fontWeight:600}}>
-                <Icon name="users" size={13} style={{color:C.mute}}/>{q.entrants.toLocaleString()} in
-              </span>
-              <button disabled={q.status==="upcoming"} style={{...S.questBtn,
-                marginLeft:"auto",opacity:q.status==="upcoming"?0.5:1}}>
-                {q.status==="upcoming"?"SOON":"ENTER ON GO"}
-              </button>
+              {isLive ? (
+                <a href={q.goUrl} target="_blank" rel="noopener noreferrer"
+                  style={{...S.questBtn,marginLeft:"auto",textDecoration:"none",display:"inline-flex",alignItems:"center",gap:5}}>
+                  ENTER ON GO <Icon name="arrow" size={13}/>
+                </a>
+              ) : (
+                <button disabled style={{...S.questBtn,marginLeft:"auto",opacity:0.5,cursor:"default"}}>
+                  SOON
+                </button>
+              )}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* how it works */}
+      {/* how it works — expandable, matches Pool/Ranks */}
       <div style={{padding:"6px 16px 0"}}>
-        <div style={{...S.tokenStat,padding:"16px 18px"}}>
-          <div style={{fontSize:11,color:C.mute,letterSpacing:2,fontWeight:700,marginBottom:12,
-            fontFamily:"'Archivo Narrow',sans-serif"}}>HOW BOUNTIES WORK</div>
-          {[
-            ["Funded by the token","30% of all $FANTABALL creator fees fund these bounties — separate from the top-100 prize pool."],
-            ["Two kinds","REACH bounties spread the project (streams, posts, clips). LADDER bounties reward the competition itself."],
-            ["Objective deliverables","Every bounty is verified by a public link + screenshot against a clear threshold. No vague judging."],
-            ["One winner · pump.fun decides","Each bounty pays exactly one winner. pump.fun reviews submissions and signs the payout — we can recommend, but never pick the winner."],
-            ["Paid in SOL","The winner is paid directly from escrow once the submission is approved."],
-          ].map(([t,d],i)=>(
-            <div key={t} style={{display:"flex",gap:12,padding:"8px 0",borderBottom:i<4?`1px solid ${C.line}`:"none"}}>
-              <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:14,color:C.orange,flexShrink:0,width:18}}>{i+1}</span>
-              <div>
-                <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:700,fontSize:13.5,color:C.ink}}>{t}</div>
-                <div style={{fontSize:12,color:C.mute,lineHeight:1.45,marginTop:1}}>{d}</div>
+        <button onClick={()=>setHowOpen(v=>!v)} style={S.howItWorksWide}>
+          How it works
+          <span style={{display:"inline-flex",transform:howOpen?"rotate(180deg)":"none",transition:"transform .2s"}}>
+            <Icon name="chevron" size={16}/>
+          </span>
+        </button>
+        {howOpen && (
+          <div style={{...S.tokenStat,padding:"16px 18px",marginTop:8}}>
+            <p style={{margin:"0 0 12px",fontSize:12.5,color:C.mute,lineHeight:1.5}}>
+              Bounties are funded by <b style={{color:C.ink}}>30% of all $FANTABALL creator fees</b> — a budget
+              completely separate from the top-100 prize pool (60%). They reward the people who grow the project.
+            </p>
+            {[
+              ["Funded by the token","30% of $FANTABALL creator fees fund these bounties — separate from the top-100 prize pool."],
+              ["Two kinds","REACH bounties spread the project (streams, posts, clips). LADDER bounties reward the competition itself."],
+              ["Objective deliverables","Every bounty is verified by a public link + screenshot against a clear threshold. No vague judging."],
+              ["One winner · pump.fun decides","Each bounty pays exactly one winner. pump.fun reviews submissions and signs the payout — we can recommend, but never pick the winner."],
+              ["Paid in SOL","The winner is paid directly from escrow once the submission is approved."],
+            ].map(([t,d],i)=>(
+              <div key={t} style={{display:"flex",gap:12,padding:"8px 0",borderBottom:i<4?`1px solid ${C.line}`:"none"}}>
+                <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:14,color:C.orange,flexShrink:0,width:18}}>{i+1}</span>
+                <div>
+                  <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:700,fontSize:13.5,color:C.ink}}>{t}</div>
+                  <div style={{fontSize:12,color:C.mute,lineHeight:1.45,marginTop:1}}>{d}</div>
+                </div>
               </div>
-            </div>
-          ))}
-          <p style={{fontSize:10.5,color:C.mute,lineHeight:1.45,marginTop:10,opacity:.8}}>
-            Only one submission wins each bounty — but every entry already puts the project in front of a new audience.
-          </p>
-        </div>
+            ))}
+            <p style={{fontSize:10.5,color:C.mute,lineHeight:1.45,marginTop:10,opacity:.8}}>
+              Only one submission wins each bounty — but every entry already puts the project in front of a new audience.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3762,51 +3792,191 @@ function Section({kicker,title,children}){
 }
 
 function FullRules(){
-  const scoring=[
-    ["Played (starter)","+1"],["Played 60+ min","+1"],
-    ["Goal — FWD / MID / DEF","+5 / +6 / +8"],["Assist — FWD / MID / DEF","+3 / +4 / +5"],
-    ["Clean sheet — GK / DEF","+5 / +4"],["Penalty saved","+8"],["Every 4 saves (GK)","+1"],
-    ["Hat-trick / Poker","+3 / +6"],["Goal conceded (GK)","−1"],["Penalty missed","−2"],
-    ["Yellow / Red card","−1 / −4"],["Own goal","−4"],
+  const [q,setQ]=useState("");
+  const [open,setOpen]=useState(null); // index of open section (accordion)
+
+  // Each section: title + searchable plain text + render(). Built from the official
+  // regolamento.md (translated to English). Single source of truth for the rulebook.
+  const sections=[
+    {
+      id:"principles", title:"1 · Principles",
+      text:"principles objective api verified transparent no subjective ratings cumulative season one leaderboard",
+      body:(
+        <p style={S.rbP}>Fantaball scores only objective, API-verified match events — goals, assists, clean sheets,
+        minutes, cards. No subjective ratings: anyone can rebuild any score event by event. One cumulative
+        leaderboard runs the whole tournament, with no eliminations.</p>
+      ),
+    },
+    {
+      id:"presence", title:"2 · Presence & minutes",
+      text:"presence minutes played starter 60 minutes appearance points",
+      body:(
+        <ul style={S.rbUl}>
+          <li>Played (came on at all): <b>+1</b></li>
+          <li>Played 60+ minutes: <b>+1</b> extra</li>
+          <li>Only the 11 starters you set score. Bench players don't score unless promoted before lock.</li>
+        </ul>
+      ),
+    },
+    {
+      id:"gk", title:"3 · Goalkeepers (GK)",
+      text:"goalkeeper gk clean sheet penalty saved saves goal conceded yellow red own goal",
+      body:(
+        <table style={S.rbTable}><tbody>
+          <tr><td>Clean sheet (60+ min)</td><td>+5</td></tr>
+          <tr><td>Penalty saved</td><td>+8</td></tr>
+          <tr><td>Every 4 saves</td><td>+1</td></tr>
+          <tr><td>Goal conceded (each)</td><td>−1</td></tr>
+          <tr><td>Yellow / Red card</td><td>−1 / −4</td></tr>
+          <tr><td>Own goal</td><td>−4</td></tr>
+        </tbody></table>
+      ),
+    },
+    {
+      id:"df", title:"4 · Defenders (DF)",
+      text:"defender df goal assist clean sheet yellow red own goal",
+      body:(
+        <table style={S.rbTable}><tbody>
+          <tr><td>Goal</td><td>+8</td></tr>
+          <tr><td>Assist</td><td>+5</td></tr>
+          <tr><td>Clean sheet (60+ min)</td><td>+4</td></tr>
+          <tr><td>Yellow / Red card</td><td>−1 / −4</td></tr>
+          <tr><td>Own goal</td><td>−4</td></tr>
+        </tbody></table>
+      ),
+    },
+    {
+      id:"mf", title:"5 · Midfielders (MF)",
+      text:"midfielder mf goal assist yellow red own goal",
+      body:(
+        <table style={S.rbTable}><tbody>
+          <tr><td>Goal</td><td>+6</td></tr>
+          <tr><td>Assist</td><td>+4</td></tr>
+          <tr><td>Yellow / Red card</td><td>−1 / −4</td></tr>
+          <tr><td>Own goal</td><td>−4</td></tr>
+        </tbody></table>
+      ),
+    },
+    {
+      id:"fw", title:"6 · Forwards (FW)",
+      text:"forward fw striker goal assist hat-trick hattrick poker yellow red own goal",
+      body:(
+        <table style={S.rbTable}><tbody>
+          <tr><td>Goal</td><td>+5</td></tr>
+          <tr><td>Assist</td><td>+3</td></tr>
+          <tr><td>Hat-trick (3 goals)</td><td>+3 extra</td></tr>
+          <tr><td>Poker (4+ goals)</td><td>+6 extra</td></tr>
+          <tr><td>Yellow / Red card</td><td>−1 / −4</td></tr>
+          <tr><td>Own goal</td><td>−4</td></tr>
+        </tbody></table>
+      ),
+      note:"Hat-trick and poker don't stack: 4 goals = +6 only, not +3+6.",
+    },
+    {
+      id:"penalties", title:"7 · Penalties",
+      text:"penalty scored missed",
+      body:(
+        <ul style={S.rbUl}>
+          <li>Penalty scored: counts as a normal goal for the role (+5/+6/+8) — no extra.</li>
+          <li>Penalty missed: <b>−2</b></li>
+        </ul>
+      ),
+      note:"A scored penalty doesn't over-reward the taker, who is often already the star.",
+    },
+    {
+      id:"formula", title:"8 · Scoring formula",
+      text:"formula calculation raw score presence role bonus penalty malus",
+      body:(
+        <div style={S.rbCode}>raw = presence + role bonus + penalty − malus
+final = captain/vice multiplier applied to raw</div>
+      ),
+    },
+    {
+      id:"captain", title:"9 · Captain & Vice multiplier",
+      text:"captain vice multiplier double 1.5 floor zero did not play",
+      body:(
+        <ul style={S.rbUl}>
+          <li>Captain: raw score <b>×2</b>, floored at 0 (a captain can never lose you points).</li>
+          <li>Vice: <b>×1.5</b>, but only if the captain didn't play.</li>
+          <li>The floor only applies to whoever carries the multiplier; a normal player can go negative.</li>
+        </ul>
+      ),
+      note:"Example — Captain scores (+5) then sees red (−4): raw +1 → max(0,1)×2 = +2.",
+    },
+    {
+      id:"lineup", title:"10 · Setting your lineup",
+      text:"lineup formation lock deadline forgot did not set last valid lineup starters",
+      body:(
+        <ul style={S.rbUl}>
+          <li>You set 11 starters before each matchday's lock (min 1 GK, 3 DEF, 2 MID, 1 FWD).</li>
+          <li><b>If you don't set a lineup in time, your last valid lineup stays active</b> and scores as normal.</li>
+          <li>Captain and vice multipliers apply to that locked lineup.</li>
+        </ul>
+      ),
+    },
+    {
+      id:"market", title:"11 · Market rules",
+      text:"market transfer eliminated knocked out refund 50% credits slot empty window",
+      body:(
+        <ul style={S.rbUl}>
+          <li>Prices are fixed for the whole tournament.</li>
+          <li><b>If a player is eliminated from the real World Cup, they're removed from your squad and you get 50% of the credits you paid back.</b></li>
+          <li>The freed slot stays empty until the next transfer window — you can't immediately re-buy.</li>
+        </ul>
+      ),
+    },
+    {
+      id:"hold", title:"12 · The $25 holding rule",
+      text:"hold 25 dollars token eligibility snapshot value entry amount overall points",
+      body:(
+        <ul style={S.rbUl}>
+          <li>To score in the overall standings you must hold $FANTABALL. At join, buy $25 worth — the token amount you receive is recorded as your floor.</li>
+          <li>Eligible at a snapshot if <b>tokens ≥ entry amount</b> OR <b>value ≥ $25</b>.</li>
+          <li>3 random snapshots per gameweek; you must pass all 3. See the Pool tab for the full mechanic.</li>
+        </ul>
+      ),
+    },
+    {
+      id:"standings", title:"13 · Standings & payouts",
+      text:"standings leaderboard top 100 prize pool sol tie break payout curve",
+      body:(
+        <p style={S.rbP}>One cumulative leaderboard for the whole tournament. The top 100 split the pool in SOL
+        on a curve that rewards depth — even 100th place is paid. Ties break by captain points, then lowest
+        budget spent, then earliest signup. The pool wallet and fee flow are public on-chain.</p>
+      ),
+    },
   ];
-  const roster=[
-    ["Squad","16 players — 2 GK, 5 DEF, 6 MID, 3 FWD"],
-    ["Budget","888 credits, fixed prices all tournament"],
-    ["Starting XI","11 each matchday · min 1 GK, 3 DEF, 2 MID, 1 FWD"],
-    ["Captain","double points · floored at 0"],
-    ["Vice","×1.5, only if captain doesn't play"],
-    ["Transfers","between stages · eliminated player gives 50% credits back"],
-  ];
+
+  const ql=q.trim().toLowerCase();
+  const shown = ql
+    ? sections.filter(s => (s.title+" "+s.text).toLowerCase().includes(ql))
+    : sections;
+
   return (
     <div style={{marginTop:10}}>
-      <div style={S.ruleBlock}>
-        <div style={S.ruleHead}>SCORING</div>
-        {scoring.map(([k,v])=>(
-          <div key={k} style={S.ruleLine}>
-            <span style={{flex:1,fontSize:13.5,color:C.inkSoft}}>{k}</span>
-            <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:C.orange}}>{v}</span>
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search the rules… (e.g. captain, clean sheet, refund)"
+        style={S.rbSearch}/>
+      {shown.length===0 && (
+        <div style={{textAlign:"center",padding:"24px",color:C.mute,fontSize:13}}>No rule matches “{q}”.</div>
+      )}
+      {shown.map((s)=>{
+        const isOpen = ql ? true : open===s.id; // when searching, expand matches
+        return (
+          <div key={s.id} style={S.rbSection}>
+            <button onClick={()=>setOpen(o=>o===s.id?null:s.id)} style={S.rbHead}>
+              <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:C.ink}}>{s.title}</span>
+              {!ql && <span style={{display:"inline-flex",transform:isOpen?"rotate(180deg)":"none",transition:"transform .2s",color:C.mute}}>
+                <Icon name="chevron" size={16}/></span>}
+            </button>
+            {isOpen && (
+              <div style={{padding:"4px 14px 14px"}}>
+                {s.body}
+                {s.note && <p style={S.rbNote}>{s.note}</p>}
+              </div>
+            )}
           </div>
-        ))}
-      </div>
-      <div style={S.ruleBlock}>
-        <div style={S.ruleHead}>YOUR SQUAD</div>
-        {roster.map(([k,v])=>(
-          <div key={k} style={{...S.ruleLine,alignItems:"flex-start"}}>
-            <span style={{width:90,fontSize:11,fontWeight:800,color:C.orange,letterSpacing:.5,
-              fontFamily:"'Archivo Narrow',sans-serif",textTransform:"uppercase",flexShrink:0}}>{k}</span>
-            <span style={{flex:1,fontSize:13,color:C.inkSoft,lineHeight:1.5}}>{v}</span>
-          </div>
-        ))}
-      </div>
-      <div style={S.ruleBlock}>
-        <div style={S.ruleHead}>HOW YOU WIN</div>
-        <p style={{fontSize:13,color:C.inkSoft,lineHeight:1.6,margin:0}}>
-          One cumulative leaderboard for the whole tournament — no eliminations. Top 100 split the
-          pool in SOL on a smooth curve: a strong podium, but even 100th place gets paid. Ties
-          broken by captain points, then lowest budget spent, then earliest signup. The pool wallet
-          and fee flow are public on-chain.
-        </p>
-      </div>
+        );
+      })}
     </div>
   );
 }
@@ -4062,7 +4232,38 @@ function StatsGroups(){
 
 function StatsBracket(){
   const [bracket,setBracket]=useState(null);
+  const scrollRef=useRef(null);
+  const [isDesktop,setIsDesktop]=useState(false);
+  const [thumb,setThumb]=useState({w:0,left:0}); // scrollbar thumb geometry (%)
+  useEffect(()=>{
+    // desktop = fine pointer (mouse) and no coarse/touch primary input
+    const mq=window.matchMedia("(min-width:1024px) and (pointer:fine)");
+    const set=()=>setIsDesktop(mq.matches); set();
+    mq.addEventListener?.("change",set);
+    return ()=>mq.removeEventListener?.("change",set);
+  },[]);
   useEffect(()=>{let live=true;getBracket().then(d=>{if(live)setBracket(d&&Object.keys(d).length?d:DEMO_BRACKET);});return ()=>{live=false;};},[]);
+
+  // keep the custom thumb in sync with the scroll container
+  function syncThumb(){
+    const el=scrollRef.current; if(!el) return;
+    const {scrollWidth,clientWidth,scrollLeft}=el;
+    if(scrollWidth<=clientWidth){ setThumb({w:100,left:0}); return; }
+    setThumb({ w:(clientWidth/scrollWidth)*100, left:(scrollLeft/scrollWidth)*100 });
+  }
+  useEffect(()=>{ syncThumb(); },[bracket,isDesktop]);
+
+  // drag the thumb → scroll the container
+  function onThumbDown(e){
+    e.preventDefault();
+    const el=scrollRef.current; if(!el) return;
+    const startX=e.clientX, startScroll=el.scrollLeft;
+    const ratio=el.scrollWidth/el.clientWidth;
+    function move(ev){ el.scrollLeft=startScroll+(ev.clientX-startX)*ratio; }
+    function up(){ window.removeEventListener("mousemove",move); window.removeEventListener("mouseup",up); }
+    window.addEventListener("mousemove",move); window.addEventListener("mouseup",up);
+  }
+
   if(!bracket) return <div style={{textAlign:"center",padding:"40px",color:C.mute}}>Loading…</div>;
   const rounds=Object.entries(bracket);
   const CARD_H=56,GAP_0=14,COL_W=168,COL_GAP=28,LABEL_H=22;
@@ -4095,7 +4296,8 @@ function StatsBracket(){
   );
   return (
     <div>
-      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch",margin:"0 -16px",padding:"4px 16px 10px"}}>
+      <div ref={scrollRef} onScroll={syncThumb}
+        style={{overflowX:"auto",WebkitOverflowScrolling:"touch",margin:"0 -16px",padding:"4px 16px 10px"}}>
         <div style={{position:"relative",width:treeW,height:totalH+LABEL_H}}>
           {rounds.map(([round],r)=>(
             <div key={"l"+round} style={{position:"absolute",top:0,left:r*(COL_W+COL_GAP),width:COL_W,textAlign:"center",
@@ -4121,8 +4323,23 @@ function StatsBracket(){
           ))}
         </div>
       </div>
+      {/* desktop-only draggable scrollbar (mobile uses touch) */}
+      {isDesktop && thumb.w<100 && (
+        <div style={{height:10,margin:"2px 2px 0",borderRadius:6,background:C.line,position:"relative",cursor:"pointer"}}
+          onMouseDown={(e)=>{
+            // click on track jumps the thumb toward the click point
+            const el=scrollRef.current; if(!el) return;
+            const rect=e.currentTarget.getBoundingClientRect();
+            const pct=(e.clientX-rect.left)/rect.width;
+            el.scrollLeft=pct*(el.scrollWidth-el.clientWidth);
+          }}>
+          <div onMouseDown={onThumbDown}
+            style={{position:"absolute",top:0,height:10,borderRadius:6,background:C.orange,
+              width:`${thumb.w}%`,left:`${thumb.left}%`,cursor:"grab"}}/>
+        </div>
+      )}
       <p style={{fontSize:11.5,color:C.mute,textAlign:"center",margin:"12px 0 0",lineHeight:1.5,padding:"0 8px"}}>
-        48-team format · 32 teams reach the knockouts. Scroll to follow the path to the Final.
+        48-team format · 32 teams reach the knockouts. {isDesktop?"Drag the bar to follow the path to the Final.":"Swipe to follow the path to the Final."}
       </p>
     </div>
   );
@@ -4450,9 +4667,9 @@ const S={
 
   // ── PLAYER CARD (FUT-style) ──
   pcWrap:{position:"relative",width:74,display:"flex",justifyContent:"center"},
-  pcBadge:{position:"absolute",top:-6,right:8,width:18,height:18,borderRadius:"50%",
+  pcCtrl:{position:"absolute",top:-6,right:6,width:19,height:19,borderRadius:"50%",
     fontWeight:900,fontSize:10,display:"grid",placeItems:"center",fontFamily:"'Archivo',sans-serif",
-    boxShadow:"0 2px 6px #0007",zIndex:4},
+    boxShadow:"0 2px 6px #0006",zIndex:5,cursor:"pointer",padding:0,lineHeight:1},
   pcCard:{width:70,borderRadius:11,overflow:"hidden",
     background:"linear-gradient(180deg, rgba(28,40,32,.96), rgba(14,22,16,.96))",
     border:"1px solid #ffffff1f",boxShadow:"0 8px 18px #00000070, inset 0 1px 0 #ffffff1a",
@@ -4470,9 +4687,6 @@ const S={
   myRankCard:{position:"relative",overflow:"hidden",background:C.ink,borderRadius:18,padding:"20px 22px"},
   poolBanner:{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.card,borderRadius:14,
     padding:"14px 18px",border:`1px solid ${C.line}`},
-  howItWorksBtn:{display:"inline-flex",alignItems:"center",gap:5,background:C.ink,color:"#fff",border:"none",
-    padding:"9px 14px",borderRadius:11,cursor:"pointer",fontFamily:"'Archivo',sans-serif",fontWeight:800,
-    fontSize:12.5,letterSpacing:.2},
   howItWorksWide:{width:"100%",marginTop:8,display:"flex",alignItems:"center",justifyContent:"center",gap:6,
     background:C.card,color:C.ink,border:`1.5px solid ${C.line}`,padding:"11px",borderRadius:12,cursor:"pointer",
     fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:13,letterSpacing:.2},
@@ -4522,6 +4736,20 @@ const S={
   ruleHead:{fontSize:11,color:C.mute,letterSpacing:2,fontWeight:800,marginBottom:12,
     fontFamily:"'Archivo Narrow',sans-serif"},
   ruleLine:{display:"flex",alignItems:"center",gap:12,padding:"9px 0",borderBottom:`1px solid ${C.line}`},
+  rbSearch:{width:"100%",background:C.card,border:`1.5px solid ${C.line}`,borderRadius:11,padding:"11px 14px",
+    color:C.ink,fontSize:14,fontFamily:"'Inter',sans-serif",outline:"none",marginBottom:10},
+  rbSection:{background:C.card,border:`1px solid ${C.line}`,borderRadius:12,marginBottom:8,overflow:"hidden"},
+  rbHead:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",
+    padding:"13px 14px",background:"none",border:"none",cursor:"pointer",textAlign:"left"},
+  rbP:{fontSize:13,color:C.inkSoft,lineHeight:1.6,margin:0},
+  rbUl:{margin:0,paddingLeft:18,fontSize:13,color:C.inkSoft,lineHeight:1.7},
+  rbTable:{width:"100%",borderCollapse:"collapse",fontSize:13},
+  rbCode:{background:C.ink,color:"#fff",borderRadius:10,padding:"12px 14px",
+    fontFamily:"'Space Mono','Archivo',monospace",fontWeight:700,fontSize:12,lineHeight:1.6,whiteSpace:"pre-wrap"},
+  rbNote:{fontSize:11.5,color:C.mute,lineHeight:1.5,margin:"10px 0 0",fontStyle:"italic"},
+  refundNote:{display:"flex",gap:8,alignItems:"flex-start",background:C.orangeSoft,
+    border:`1px solid ${C.orange}33`,borderRadius:11,padding:"10px 12px",fontSize:11.5,
+    color:C.inkSoft,lineHeight:1.45},
 
   // INFOGRAPHICS
   statStrip:{display:"flex",margin:"0 16px",background:C.card,borderRadius:14,

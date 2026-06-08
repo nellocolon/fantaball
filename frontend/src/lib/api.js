@@ -14,6 +14,7 @@ async function get(path, params = {}) {
     if (path.includes("/standings")) return {};
     if (path.includes("/bracket")) return {};
     if (path.includes("/stats/")) return [];
+    if (path.includes("/bounties")) return [];
     return null;
   }
   const usp = new URLSearchParams(params);
@@ -74,6 +75,9 @@ export async function getStandings() {
 }
 export async function getBracket() {
   return get("/public/bracket");               // {"Round of 32":[{home,away,home_score,away_score,pens,done}], ...}
+}
+export async function getBounties() {
+  return get("/public/bounties");              // [{id,cat,title,descr,reward_sol,deliver,go_url,active}]
 }
 
 export const API_URL = API_BASE || null;

@@ -302,3 +302,20 @@ def bracket():
             "pens": r.get("pens"), "done": r.get("done", False),
         })
     return out
+
+
+@app.get("/public/bounties")
+def bounties():
+    """pump.fun GO bounties for the Quests tab. go_url empty => SOON; active+go_url => ENTER."""
+    try:
+        rows = supa_get("bounties",
+                        "select=id,cat,title,descr,reward_sol,deliver,go_url,active,sort_order"
+                        "&order=sort_order.asc")
+    except HTTPException:
+        return []
+    return [{
+        "id": r["id"], "cat": r["cat"], "title": r["title"], "descr": r.get("descr"),
+        "reward_sol": float(r["reward_sol"]) if r.get("reward_sol") is not None else 0,
+        "deliver": r.get("deliver"), "go_url": r.get("go_url"),
+        "active": bool(r.get("active")) and bool(r.get("go_url")),
+    } for r in rows]

@@ -262,5 +262,9 @@ export async function getBracket() {
   try { return (await publicApi.getBracket()) || {}; }
   catch (e) { console.warn("getBracket:", e?.message || e); return {}; }
 }
+export async function getBounties() {
+  try { return (await publicApi.getBounties()) || []; }
+  catch (e) { console.warn("getBounties:", e?.message || e); return []; }
+}
 
 export { HAS_SUPABASE };

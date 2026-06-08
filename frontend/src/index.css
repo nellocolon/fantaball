@@ -18,3 +18,8 @@ a { -webkit-tap-highlight-color: transparent; }
       linear-gradient(180deg, #14110e 0%, #0c0a08 100%);
   }
 }
+
+/* Rulebook table cells */
+table td { padding: 8px 0; border-bottom: 1px solid #e8e2d8; }
+table td:last-child { text-align: right; font-family: 'Archivo', sans-serif; font-weight: 800; color: #ff5b1e; white-space: nowrap; padding-left: 12px; }
+table tr:last-child td { border-bottom: none; }
