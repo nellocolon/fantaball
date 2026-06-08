@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, createContext, useContext } from 
 import { toPng } from "html-to-image";
 import { getPlayers, getLeaderboard, saveRoster, getMyRoster, saveLineup, getLineup, getFixtures, getScorers, getAssists, getCards, getStandings, getBracket, getBounties, HAS_SUPABASE, computeFormationLock } from "./lib/data";
 import { initAuth, onAuthChange, signInWithX, signOut, connectWallet } from "./lib/auth";
+import { supabase } from "./lib/supabase";
 
 // ─── ICON SYSTEM (monochrome SVG, inherits currentColor) ──────────────────
 // Declared at top (function declaration is hoisted) to avoid TDZ when used in JSX below.
@@ -1407,6 +1408,9 @@ export default function App(){
   const [showDexPopup,setShowDexPopup]=useState(false);
   const [authUser,setAuthUser]=useState(null);
   const [loginOpen,setLoginOpen]=useState(false);
+  // Transient state for the OAuth return redirect phase (shows a loading message, does NOT touch the Sign in button UI).
+  const [authReturning, setAuthReturning] = useState(false);
+  const [authCallbackError, setAuthCallbackError] = useState("");
   const [formation,setFormation]=useState("4-3-3");
   const [starters,setStarters]=useState([]); // 11 player ids; auto-filled, user-editable
 
@@ -1485,8 +1489,90 @@ export default function App(){
 
   // restore local draft on first load
   useEffect(()=>{
-    const unsub=onAuthChange(u=>setAuthUser(u));
-    initAuth().then(u=>{ if(u) setAuthUser(u); }).catch(e=>console.warn("initAuth:",e?.message||e));
+    // Detect we are returning from Supabase/X OAuth redirect (code or error in URL, or hash tokens).
+    // This powers the "loading during return redirect" message. Does not affect the Sign in button.
+    let isReturn = false;
+    try {
+      const u = new URL(window.location.href);
+      isReturn = !!(u.searchParams.get('code') || u.searchParams.get('access_token') || u.searchParams.get('error') || window.location.hash.includes('access_token'));
+    } catch (e) {}
+    if (isReturn) {
+      setAuthReturning(true);
+      setAuthCallbackError("");
+    }
+
+    const unsubOnAuthChange = onAuthChange(u=>setAuthUser(u));
+
+    // Drive authUser state *immediately* from the official Supabase listener (as requested).
+    // This ensures that after the redirect back, SIGNED_IN / INITIAL_SESSION update the UI without delay.
+    let supabaseSub = null;
+    if (HAS_SUPABASE && supabase) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        // Use supabase.auth.onAuthStateChange to immediately update React authUser state (per requirements).
+        if (session?.user) {
+          const enriched = (typeof window !== 'undefined' && window.__FTB_USER) || null;
+          const next = (enriched && enriched.id === session.user.id) ? enriched : {
+            id: session.user.id,
+            handle: session.user.user_metadata?.user_name || session.user.user_metadata?.preferred_username || null,
+          };
+          setAuthUser(next);
+
+          // After successful login (SIGNED_IN or INITIAL_SESSION post-redirect), automatically call getMyRoster + getLineup.
+          // This complements the [authUser] effect and ensures data is pulled right on the auth event.
+          if (HAS_SUPABASE && next?.id) {
+            try {
+              const roster = await getMyRoster(next.id);
+              if (roster) {
+                const playerIds = (roster.roster_players || []).map(rp => rp.player_id).filter(id => typeof id === "number");
+                if (playerIds.length > 0) {
+                  setSquad(playerIds);
+                  if (roster.name) setTeamName(roster.name);
+                }
+                if (roster.id) {
+                  const lineup = await getLineup(roster.id, GW);
+                  if (lineup) {
+                    if (Array.isArray(lineup.starters) && lineup.starters.length) setStarters(lineup.starters);
+                    if (lineup.captainId != null) setCaptain(lineup.captainId);
+                    if (lineup.viceId != null) setVice(lineup.viceId);
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn("auto getMyRoster/getLineup after onAuthStateChange:", e?.message || e);
+            }
+          }
+        } else {
+          setAuthUser(null);
+        }
+        // Clear the transient return loading state as soon as we have an auth event
+        if (isReturn) setAuthReturning(false);
+      });
+      supabaseSub = subscription;
+    }
+
+    let authUnsub = () => {};
+    initAuth()
+      .then((res) => {
+        if (res?.user) setAuthUser(res.user);
+        if (res?.callbackError) {
+          setAuthCallbackError(String(res.callbackError));
+          // Surface callback error by opening the sheet so user sees a message (non-fatal, keeps app usable)
+          setLoginOpen(true);
+        }
+        if (typeof res?.unsubscribe === 'function') {
+          authUnsub = res.unsubscribe;
+        }
+        // If we were in return-redirect, and we now have (or don't have) a user, stop the loading message.
+        if (isReturn) setAuthReturning(false);
+      })
+      .catch(e=>{
+        console.warn("initAuth:",e?.message||e);
+        if (isReturn) {
+          setAuthReturning(false);
+          setAuthCallbackError(e?.message || 'Auth initialization failed after redirect');
+        }
+      });
+
     try{
       const raw=localStorage.getItem("ftb_draft");
       if(raw){
@@ -1498,7 +1584,12 @@ export default function App(){
         if(d.jersey) setJersey(d.jersey);
       }
     }catch(e){}
-    return ()=>{ unsub&&unsub(); };
+
+    return ()=>{
+      if (unsubOnAuthChange) unsubOnAuthChange();
+      if (authUnsub) authUnsub();
+      if (supabaseSub) { try { supabaseSub.unsubscribe(); } catch (e) {} }
+    };
   },[]);
 
   // Load roster + lineup from server after login (or on mount if already logged in).
@@ -1640,6 +1731,18 @@ export default function App(){
     <div style={S.app}>
       <Fonts/>
       <TopBar authUser={authUser} onLogin={()=>setLoginOpen(true)}/>
+      {/* Loading message shown only during the OAuth return redirect (after X/Supabase sends us back).
+          This is a transient UI affordance and does NOT modify the Sign in button or LoginSheet button styles. */}
+      {authReturning && (
+        <div style={{position:'sticky',top:0,zIndex:50,background:'#0f0f0f',color:'#ddd',fontSize:12,padding:'6px 12px',textAlign:'center',borderBottom:'1px solid #222'}}>
+          Completing sign-in with X… {authCallbackError ? ' — ' + authCallbackError : ''}
+        </div>
+      )}
+      {authCallbackError && !authReturning && loginOpen && (
+        <div style={{position:'sticky',top: authReturning ? 28 : 0, zIndex:49, background:'#3a2a1f', color:'#ffcc99', fontSize:12, padding:'4px 12px', textAlign:'center', borderBottom:'1px solid #3a2a1f'}}>
+          Sign-in error: {authCallbackError}
+        </div>
+      )}
       <main style={S.main}>
         {tab==="build" && <Build {...ctx}/>}
         {tab==="pitch" && <Pitch {...ctx}/>}

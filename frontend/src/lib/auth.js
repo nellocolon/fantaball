@@ -80,8 +80,63 @@ async function ensureUserRow(authUser) {
 }
 
 // Call once on app start: picks up an existing session and subscribes.
+// Returns { user, unsubscribe } so callers can properly clean up the Supabase listener
+// (prevents EventEmitter memory leaks on hot reload / StrictMode / multiple mounts).
 export async function initAuth() {
-  if (!HAS_SUPABASE) return null;
+  if (!HAS_SUPABASE) {
+    return { user: null, unsubscribe: () => {} };
+  }
+
+  // ── Handle OAuth callback return from Supabase/X (PKCE code flow or implicit hash) ──
+  // This must run on the redirect target (origin) so the session is established before
+  // the rest of the app decides "not logged in".
+  let callbackError = null;
+  try {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('code');
+    const hasHashToken = window.location.hash.includes('access_token=') || window.location.hash.includes('refresh_token=');
+    const urlError = url.searchParams.get('error') || url.searchParams.get('error_description');
+
+    if (urlError) {
+      callbackError = urlError;
+      console.warn('[auth] OAuth return error in URL:', urlError);
+      // Clean the error params so they don't stick around on refresh
+      const cleanUrl = window.location.pathname + (window.location.hash || '');
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+
+    if (code) {
+      console.log('[auth] OAuth return detected (code=). Exchanging for session...');
+      const { data: ex, error: exErr } = await supabase.auth.exchangeCodeForSession(code);
+      if (exErr) {
+        console.error('[auth] exchangeCodeForSession error:', exErr);
+        callbackError = exErr.message || String(exErr);
+      } else {
+        console.log('[auth] exchangeCodeForSession OK, session user:', ex?.session?.user?.id);
+      }
+      // Always clean the ?code= (and any other oauth params) from the URL
+      const cleanUrl = window.location.pathname + (window.location.hash || '');
+      window.history.replaceState({}, document.title, cleanUrl);
+    } else if (hasHashToken) {
+      // Older implicit flow or provider that returns tokens in hash
+      console.log('[auth] OAuth return detected (hash tokens). Calling getSession() to hydrate.');
+      // supabase-js will pick tokens from hash on getSession / createClient
+      const cleanHash = '';
+      // We intentionally leave cleaning to after getSession below (hash is processed by the lib)
+      // Do a replace after to avoid leaking tokens in address bar
+      setTimeout(() => {
+        try {
+          const p = window.location.pathname;
+          window.history.replaceState({}, document.title, p);
+        } catch (e) {}
+      }, 0);
+    }
+  } catch (e) {
+    console.warn('[auth] callback handling error (non-fatal):', e?.message || e);
+  }
+
+  // Initial session (will see the freshly exchanged session if we just did the code exchange,
+  // or a pre-existing one, or null).
   const { data } = await supabase.auth.getSession();
   let user = null;
   if (data?.session?.user) {
@@ -91,8 +146,15 @@ export async function initAuth() {
       if (linked) user = { ...user, wallet: linked };
     }
     setSessionUser(user);
+  } else if (callbackError) {
+    // No session but we had an error param → surface via console (UI can check window or listen)
+    console.error('[auth] No session after OAuth return. Callback error was:', callbackError);
   }
-  supabase.auth.onAuthStateChange(async (_event, session) => {
+
+  // IMPORTANT: subscribe with onAuthStateChange so SIGNED_IN / INITIAL_SESSION / etc.
+  // update the app state *immediately* (this is what drives setAuthUser via the emitter).
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log('[auth] onAuthStateChange:', event, 'hasUser=', !!session?.user);
     if (session?.user) {
       let u = await ensureUserRow(session.user);
       if (u?.id) {
@@ -104,7 +166,14 @@ export async function initAuth() {
       setSessionUser(null);
     }
   });
-  return user;
+
+  return {
+    user,
+    callbackError,
+    unsubscribe: () => {
+      try { subscription?.unsubscribe(); } catch (e) {}
+    }
+  };
 }
 
 // ── Solana wallet linking ──
