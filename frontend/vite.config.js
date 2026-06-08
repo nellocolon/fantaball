@@ -6,9 +6,10 @@ export default defineConfig({
   // Only variables prefixed with VITE_ are exposed to client code via import.meta.env.
   // This is critical to prevent Netlify's secrets scanner from flagging non-public values.
   envPrefix: 'VITE_',
-  // Prevent accidental inlining of process.env.* (which would leak any non-VITE_ vars present at build time).
+  // Prevent accidental inlining of process.env.* (which would leak any non-VITE_ vars present at build time on Netlify).
+  // Must use JSON.stringify so esbuild receives valid JSON, not a parenthesized expression.
   define: {
-    'process.env': '({})',
+    'process.env': JSON.stringify({}),
   },
   server: { port: 5173, open: true },
   build: { outDir: "dist", sourcemap: false },
