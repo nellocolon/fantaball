@@ -1758,7 +1758,12 @@ export default function App(){
       {shareOpen && <ShareModal squad={squad} captain={captain} vice={vice}
         teamName={teamName} jersey={jersey} onClose={()=>setShareOpen(false)}/>}
       {tab === "build" && showDexPopup && <DexPopup onClose={()=>setShowDexPopup(false)} />}
-      {loginOpen && <LoginSheet authUser={authUser} onClose={()=>setLoginOpen(false)} authReturning={authReturning} />}
+      {loginOpen && <LoginSheet 
+        authUser={authUser} 
+        onClose={()=>setLoginOpen(false)} 
+        authReturning={authReturning}
+        callbackError={authCallbackError}
+      />}
       <Style/>
     </div>
     </PlayersContext.Provider>
@@ -1843,7 +1848,7 @@ function TopBar({authUser,onLogin}){
 }
 
 // ─── LOGIN SHEET ──────────────────────────────────────────────────────────
-function LoginSheet({authUser,onClose, authReturning = false}){
+function LoginSheet({authUser, onClose, authReturning = false, callbackError = ""}){
   const [busy,setBusy]=useState(null); // "x" | "wallet" | null
   const [err,setErr]=useState("");
   const [wallet,setWallet]=useState(authUser?.wallet||null);
@@ -1921,9 +1926,12 @@ function LoginSheet({authUser,onClose, authReturning = false}){
           <button onClick={onClose} style={S.iconBtn}><Icon name="x" size={18}/></button>
         </div>
 
-        {authReturning ? (
-          <div style={{...S.loginBtn, background: C.card, color: C.ink, border: `1px solid ${C.line}`, justifyContent: 'center', cursor: 'default'}}>
-            Completing sign-in with X…
+        {authReturning || callbackError ? (
+          <div style={{...S.loginBtn, background: C.card, color: C.ink, border: `1px solid ${C.line}`, justifyContent: 'center', cursor: 'default', flexDirection: 'column', gap: 4}}>
+            {callbackError 
+              ? `OAuth error: ${callbackError}` 
+              : 'Completing sign-in with X…'}
+            <span style={{fontSize: 11, opacity: 0.7}}>Check browser console for details. Common cause: redirect URL not whitelisted in Supabase/X settings.</span>
           </div>
         ) : (
           <button onClick={doX} disabled={busy==="x"}
