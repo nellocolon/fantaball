@@ -36,8 +36,8 @@ logs/
 *.swo
 *~
 
-# Backend specific (if any)
+# Environment files (never commit real secrets; use Netlify env vars for production)
 backend/.env
 frontend/.env
 *.env
-backend/.env
+.env.*
