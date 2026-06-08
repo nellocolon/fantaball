@@ -25,13 +25,30 @@ function setSessionUser(user) {
 // Supabase's provider key for X OAuth 2.0 is "x" (not "twitter", which is the
 // legacy OAuth 1.0a provider being deprecated).
 export async function signInWithX() {
-  if (!HAS_SUPABASE) { console.warn("Auth disabled (no Supabase env)"); return null; }
+  console.log('[auth] signInWithX() called. HAS_SUPABASE=', HAS_SUPABASE, 'origin=', typeof window !== 'undefined' ? window.location.origin : 'no-window');
+
+  if (!HAS_SUPABASE) {
+    const msg = 'Supabase not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in frontend/.env (copy from .env.example).';
+    console.error('[auth]', msg);
+    throw new Error(msg);
+  }
+
+  // Explicit call as requested — this is what reaches Supabase
+  console.log('[auth] >>> Calling supabase.auth.signInWithOAuth({ provider: "x", options: { redirectTo: "' + window.location.origin + '" } })');
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "x",
     options: { redirectTo: window.location.origin },
   });
-  if (error) throw error;
-  return data; // browser redirects to X; session resolves on return
+  console.log('[auth] signInWithOAuth response — data:', data, 'error:', error);
+
+  if (error) {
+    console.error('[auth] signInWithOAuth error details:', error);
+    throw error;
+  }
+
+  // If we reach here without redirect, something is off (normal flow redirects browser)
+  console.log('[auth] signInWithX resolved (usually browser should have redirected to X by now)');
+  return data;
 }
 
 export async function signOut() {

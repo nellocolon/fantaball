@@ -1757,16 +1757,22 @@ function LoginSheet({authUser,onClose}){
   },[authUser?.id, onClose]);
 
   async function doX(){
+    console.log('[LoginSheet] "Connect X" button clicked — calling signInWithX() now');
     setErr(""); setBusy("x");
     try{
-      await signInWithX();
+      const result = await signInWithX();
+      console.log('[LoginSheet] signInWithX() resolved successfully:', result);
       // Redirect flow: browser navigates to X, then back to redirectTo (origin).
       // On return the app re-initializes:
       //   - initAuth() + onAuthChange => setAuthUser (updates TopBar)
       //   - the [authUser] effect in App calls the existing getMyRoster(authUser.id) + getLineup(roster.id, GW)
       // If Supabase sets the session in-page (no full nav), the effect above auto-closes this sheet.
     }
-    catch(e){ setErr(e?.message||"X sign-in failed"); }
+    catch(e){
+      console.error('[LoginSheet] signInWithX() threw error:', e);
+      const userMessage = e?.message || 'X sign-in failed';
+      setErr(userMessage + ' — open browser console (F12) and check logs above for [auth] details. Common causes: missing Supabase env vars, X provider not enabled in Supabase, or redirect URL not whitelisted.');
+    }
     finally{ setBusy(null); }
   }
   // Keep local display state in sync if the global authUser.wallet gets populated
@@ -1840,7 +1846,9 @@ function LoginSheet({authUser,onClose}){
 
         {!HAS_SUPABASE && (
           <p style={{fontSize:11,color:C.mute,textAlign:"center",marginTop:12,lineHeight:1.5}}>
-            Sign-in activates once the site is connected to its backend. You can build and explore freely in the meantime.
+            Sign-in is disabled (no Supabase keys).<br />
+            Copy <code>frontend/.env.example</code> → <code>frontend/.env</code> and fill VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY.<br />
+            Also enable X provider + add your redirect origins in Supabase Dashboard.
           </p>
         )}
         {authUser && (
