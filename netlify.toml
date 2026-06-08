@@ -1,7 +1,13 @@
 # Netlify config — must live at the repository ROOT.
 # Builds the Vite app inside frontend/ and publishes frontend/dist.
-# Add in Netlify → Environment variables:
-#   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (anon public key, not service_role)
+# IMPORTANT: Only VITE_* variables are allowed in the client bundle.
+# Add these in Netlify → Site settings → Environment variables:
+#   VITE_SUPABASE_URL
+#   VITE_SUPABASE_ANON_KEY
+#   VITE_API_URL (optional)
+#
+# DO NOT set plain SUPABASE_URL or SUPABASE_KEY here — they are for backend only
+# and will be embedded into the frontend JS, triggering Netlify's secrets scanner.
 
 [build]
   base = "frontend"
