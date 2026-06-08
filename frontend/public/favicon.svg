@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#16130f"/>
+  <!-- Static sphere of 3D cubes (fantaball-logo) -->
+  <defs>
+    <linearGradient id="g" x1="32" y1="12" x2="32" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff7a3d"/>
+      <stop offset="1" stop-color="#c23d0a"/>
+    </linearGradient>
+  </defs>
+  <!-- main sphere base -->
+  <circle cx="32" cy="32" r="19" fill="url(#g)"/>
+  <!-- cube facets (small squares suggesting 3D cubes on sphere) -->
+  <g fill="#ff5b1e" opacity="0.95">
+    <rect x="20" y="16" width="5.2" height="5.2" rx="0.8"/>
+    <rect x="27" y="14.5" width="5.2" height="5.2" rx="0.8"/>
+    <rect x="34" y="16" width="5.2" height="5.2" rx="0.8"/>
+    <rect x="17.5" y="23" width="5.2" height="5.2" rx="0.8"/>
+    <rect x="25" y="22" width="5.2" height="5.2" rx="0.8"/>
+    <rect x="32.5" y="23" width="5.2" height="5.2" rx="0.8"/>
+    <rect x="39" y="24" width="5.2" height="5.2" rx="0.8"/>
+    <rect x="21" y="29" width="5.2" height="5.2" rx="0.8"/>
+    <rect x="28.5" y="28.5" width="5.2" height="5.2" rx="0.8"/>
+    <rect x="36" y="30" width="5.2" height="5.2" rx="0.8"/>
+    <rect x="18" y="36" width="5.2" height="5.2" rx="0.8"/>
+    <rect x="25.5" y="35" width="5.2" height="5.2" rx="0.8"/>
+    <rect x="33" y="36.5" width="5.2" height="5.2" rx="0.8"/>
+  </g>
+  <!-- dark facets (black patches like original 3D model) -->
+  <g fill="#121212" opacity="0.65">
+    <rect x="37" y="17" width="4.8" height="4.8" rx="0.7"/>
+    <rect x="15.5" y="30" width="4.8" height="4.8" rx="0.7"/>
+    <rect x="29" y="40" width="4.8" height="4.8" rx="0.7"/>
+    <rect x="40" y="34" width="4.5" height="4.5" rx="0.7"/>
+  </g>
+  <!-- subtle rim highlight -->
+  <circle cx="32" cy="32" r="19" fill="none" stroke="#fff" stroke-width="1.5" opacity="0.12"/>
+</svg>

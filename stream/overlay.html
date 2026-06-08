@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=1920, initial-scale=1"/>
+<title>Fantaball · Live Stream Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=Archivo+Narrow:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ── Fantaball design tokens ── */
+  :root{
+    --paper:#faf8f5; --ink:#16130f; --ink-soft:#33302b;
+    --orange:#ff5b1e; --orange-deep:#e63f00; --orange-soft:#fff0e9;
+    --line:#e8e2d8; --mute:#8c8378;
+    --panel:rgba(20,16,11,.72); --panel-line:rgba(255,255,255,.10);
+    --good:#2fbf6b; --bad:#e0502f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1920px;height:1080px;overflow:hidden;
+    font-family:'Inter',system-ui,sans-serif;color:#fff;
+    background:#0a0805;}
+  /* The stream canvas. OBS browser source = 1920x1080.
+     Everything is an overlay frame around a transparent center where
+     your camera/scene/gameplay sits. */
+  .stage{position:relative;width:1920px;height:1080px;
+    background:
+      radial-gradient(120% 80% at 50% -10%, #1c1510 0%, transparent 55%),
+      radial-gradient(90% 70% at 50% 120%, #1a120b 0%, transparent 50%),
+      linear-gradient(180deg,#0b0906,#080604);
+    overflow:hidden;}
+  /* subtle moving grid texture */
+  .stage::before{content:"";position:absolute;inset:0;opacity:.05;
+    background-image:linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px);
+    background-size:48px 48px;animation:drift 26s linear infinite;}
+  @keyframes drift{to{background-position:48px 48px}}
+  /* big ambient orange glow */
+  .glow{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none}
+  .glow.a{width:520px;height:520px;background:#ff5b1e22;top:-160px;left:-120px}
+  .glow.b{width:420px;height:420px;background:#ff5b1e1a;bottom:120px;right:-100px}
+
+  /* ── CENTER: fees engine ── */
+  .center{position:absolute;left:430px;top:206px;width:1060px;height:588px;
+    background:var(--panel);border:1px solid var(--panel-line);border-radius:22px;
+    backdrop-filter:blur(10px);padding:22px 30px 24px;display:flex;flex-direction:column;
+    box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .center-hd{text-align:center;margin-bottom:18px}
+  .center-hd .t{font-family:'Archivo';font-weight:900;font-size:26px;letter-spacing:-.3px}
+  .center-hd .t b{color:var(--orange)}
+  .center-hd .sub{font-family:'Archivo Narrow';font-weight:700;letter-spacing:2.5px;font-size:12px;
+    color:var(--mute);margin-top:4px;text-transform:uppercase}
+
+  .flow{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+  .flow-node{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:16px;
+    padding:16px 14px;text-align:center;flex-shrink:0;min-width:130px}
+  .flow-node.fees{border-color:rgba(255,91,30,.4);background:rgba(255,91,30,.07)}
+  .fn-ic{display:flex;justify-content:center;margin-bottom:8px;opacity:.9}
+  .fn-ic .i{width:24px;height:24px}
+  .fn-k{font-family:'Archivo Narrow';font-weight:700;letter-spacing:1.5px;font-size:10px;color:var(--mute)}
+  .fn-v{font-family:'Archivo';font-weight:900;font-size:22px;margin-top:3px;font-variant-numeric:tabular-nums}
+  .fn-sub{font-size:9px;color:var(--mute);font-weight:600;margin-top:1px}
+  .flow-arrow{font-size:24px;color:var(--orange);font-weight:900;flex-shrink:0}
+  .flow-split{flex:1;display:flex;gap:10px}
+  .sp{flex:1;border-radius:14px;padding:14px 10px;text-align:center;border:1px solid rgba(255,255,255,.08)}
+  .sp1{background:linear-gradient(180deg,rgba(255,91,30,.18),rgba(255,91,30,.05));border-color:rgba(255,91,30,.35)}
+  .sp2{background:rgba(255,255,255,.05)}
+  .sp3{background:rgba(255,255,255,.03)}
+  .sp-pct{font-family:'Archivo';font-weight:900;font-size:30px;line-height:1}
+  .sp1 .sp-pct{color:var(--orange)} .sp2 .sp-pct{color:#fff} .sp3 .sp-pct{color:var(--mute)}
+  .sp-k{font-family:'Archivo Narrow';font-weight:700;letter-spacing:1.5px;font-size:10px;color:var(--mute);margin-top:6px}
+  .sp-v{font-family:'Archivo';font-weight:800;font-size:16px;margin-top:4px;color:#fff;font-variant-numeric:tabular-nums}
+
+  .claims{background:rgba(0,0,0,.25);
+    border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:14px 18px;overflow:hidden;margin-bottom:14px}
+  .claims-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;
+    font-family:'Archivo Narrow';font-weight:800;letter-spacing:2px;font-size:12px;color:var(--mute)}
+  .claims-hd .wallet{font-family:'Archivo';font-weight:700;font-size:12px;color:var(--orange);letter-spacing:1px;
+    background:rgba(255,91,30,.1);padding:4px 10px;border-radius:20px}
+  .claims-list{display:flex;flex-direction:column;gap:8px;overflow:hidden}
+  .claim{display:flex;align-items:center;gap:14px;background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:11px 16px;
+    animation:slidein .5s cubic-bezier(.2,.8,.2,1)}
+  .claim .cic{width:32px;height:32px;border-radius:9px;background:rgba(47,191,107,.15);color:var(--good);
+    display:grid;place-items:center;flex-shrink:0}
+  .claim .cbody{flex:1}
+  .claim .camt{font-family:'Archivo';font-weight:900;font-size:17px;color:#fff}
+  .claim .camt span{color:var(--good);font-size:12px;font-weight:800;margin-left:8px}
+  .claim .cmeta{font-size:11px;color:var(--mute);font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+  .claim .ctime{font-family:'Archivo';font-weight:700;font-size:12px;color:var(--mute);text-align:right}
+  .claim .ctx{font-size:10px;color:var(--orange);font-weight:700;margin-top:2px}
+
+  /* active bounties strip */
+  .bounties{flex:1;display:flex;flex-direction:column;background:rgba(255,91,30,.05);
+    border:1px solid rgba(255,91,30,.22);border-radius:16px;padding:14px 18px;overflow:hidden}
+  .bounties-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;
+    font-family:'Archivo Narrow';font-weight:800;letter-spacing:2px;font-size:12px;color:var(--mute)}
+  .bounties-cta{font-family:'Archivo';font-weight:800;font-size:11px;color:var(--orange);letter-spacing:.5px}
+  .bounties-row{display:flex;gap:10px;flex:1}
+  .sp-lock{font-size:9.5px;font-weight:800;color:#4effa7;margin-top:5px;letter-spacing:.2px}
+  .bounty{flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;
+    padding:11px 13px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden}
+  .bounty .bcat{font-family:'Archivo Narrow';font-weight:800;letter-spacing:1px;font-size:9px;
+    color:var(--orange-deep);background:var(--orange-soft);padding:2px 7px;border-radius:5px;align-self:flex-start}
+  .bounty .bt{font-family:'Archivo';font-weight:800;font-size:13px;color:#fff;margin-top:7px;line-height:1.15}
+  .bounty .bd{font-size:10px;color:var(--mute);font-weight:600;margin-top:3px;line-height:1.3}
+  .bounty .bf{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+  .bounty .brw{font-family:'Archivo';font-weight:900;font-size:18px;color:var(--orange)}
+  .bounty .bwin{font-size:9px;color:var(--mute);font-weight:700}
+
+
+  /* ── HEADER ── */
+  .top{position:absolute;top:0;left:0;right:0;height:104px;display:flex;align-items:center;
+    padding:0 40px;gap:24px;
+    background:linear-gradient(180deg,rgba(8,6,4,.92),transparent);}
+  .brand{display:flex;align-items:center;gap:14px}
+  .brand .mark{width:54px;height:54px;border-radius:14px;background:var(--orange);
+    display:grid;place-items:center;font-family:'Archivo';font-weight:900;font-size:30px;color:#fff;
+    box-shadow:0 8px 24px #ff5b1e55}
+  .brand .txt{font-family:'Archivo';font-weight:900;font-size:30px;letter-spacing:-.5px;line-height:1}
+  .brand .txt b{color:var(--orange)}
+  .brand .sub{font-family:'Archivo Narrow';font-weight:700;letter-spacing:3px;font-size:12px;
+    color:var(--mute);margin-top:3px}
+  .live{display:flex;align-items:center;gap:9px;background:#e0502f;padding:8px 16px;border-radius:30px;
+    font-family:'Archivo';font-weight:800;letter-spacing:1.5px;font-size:14px;
+    box-shadow:0 6px 20px #e0502f55}
+  .live .dot{width:11px;height:11px;border-radius:50%;background:#fff;animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+  .clock{margin-left:auto;font-family:'Archivo';font-weight:800;font-size:20px;color:#fff;letter-spacing:1px}
+  .clock span{color:var(--mute);font-size:13px;font-weight:700;margin-left:8px;letter-spacing:2px}
+
+  /* ── PRIZE POOL (hero, top center) ── */
+  .pool{position:absolute;top:128px;left:50%;transform:translateX(-50%);text-align:center;width:1060px}
+  .pool .lbl{font-family:'Archivo Narrow';font-weight:700;letter-spacing:4px;font-size:13px;color:var(--mute)}
+  .pool .val{font-family:'Archivo';font-weight:900;font-size:60px;line-height:1;color:#fff;
+    text-shadow:0 0 40px #ff5b1e55;margin-top:2px}
+  .pool .val b{color:var(--orange)}
+  .pool .meta{font-size:13px;color:var(--mute);margin-top:4px;font-weight:600}
+
+  /* ── LEFT: system counters ── */
+  .col-left{position:absolute;left:40px;top:150px;width:360px;display:flex;flex-direction:column;gap:16px}
+  .stat{background:var(--panel);border:1px solid var(--panel-line);border-radius:18px;padding:20px 22px;
+    backdrop-filter:blur(8px);position:relative;overflow:hidden}
+  .stat .ic{position:absolute;right:16px;top:16px;opacity:.18}
+  .stat .k{font-family:'Archivo Narrow';font-weight:700;letter-spacing:2.5px;font-size:12px;color:var(--mute)}
+  .stat .v{font-family:'Archivo';font-weight:900;font-size:46px;line-height:1;margin-top:6px;
+    font-variant-numeric:tabular-nums}
+  .stat .v.orange{color:var(--orange)}
+  .stat .d{font-size:12px;color:var(--good);font-weight:700;margin-top:6px}
+
+  /* milestones */
+  .milestones{background:var(--panel);border:1px solid var(--panel-line);border-radius:18px;
+    padding:18px 20px;backdrop-filter:blur(8px)}
+  .milestones .hd{font-family:'Archivo Narrow';font-weight:800;letter-spacing:2.5px;font-size:12px;
+    color:var(--mute);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .ms{display:flex;align-items:center;gap:11px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+  .ms:last-child{border-bottom:none}
+  .ms .badge{width:34px;height:34px;border-radius:9px;background:var(--orange-soft);color:var(--orange-deep);
+    display:grid;place-items:center;font-family:'Archivo';font-weight:900;font-size:13px;flex-shrink:0}
+  .ms .nm{font-family:'Archivo';font-weight:800;font-size:15px;flex:1}
+  .ms .ct{font-family:'Archivo';font-weight:900;font-size:17px;color:var(--orange)}
+  .ms .ct span{font-size:11px;color:var(--mute);font-weight:700;margin-left:3px}
+
+  /* ── RIGHT: on-chain dashboard + notifications ── */
+  .col-right{position:absolute;right:40px;top:150px;width:360px;display:flex;flex-direction:column;gap:16px}
+  .chain{background:var(--panel);border:1px solid var(--panel-line);border-radius:18px;padding:18px 20px;
+    backdrop-filter:blur(8px)}
+  .chain .hd{font-family:'Archivo Narrow';font-weight:800;letter-spacing:2.5px;font-size:12px;color:var(--mute);
+    margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .chain .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .cell{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:12px 13px}
+  .cell .k{font-family:'Archivo Narrow';font-weight:700;letter-spacing:1.5px;font-size:10px;color:var(--mute)}
+  .cell .v{font-family:'Archivo';font-weight:900;font-size:23px;margin-top:4px;font-variant-numeric:tabular-nums}
+  .cell .chg{font-size:11px;font-weight:800;margin-top:3px}
+  .chg.up{color:var(--good)} .chg.down{color:var(--bad)}
+
+  .notif{flex:1;background:var(--panel);border:1px solid var(--panel-line);border-radius:18px;
+    padding:18px 20px;backdrop-filter:blur(8px);overflow:hidden;display:flex;flex-direction:column}
+  .notif .hd{font-family:'Archivo Narrow';font-weight:800;letter-spacing:2.5px;font-size:12px;color:var(--mute);
+    margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .feed{display:flex;flex-direction:column;gap:9px;overflow:hidden}
+  .card{display:flex;align-items:flex-start;gap:11px;background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:11px 13px;
+    animation:slidein .5s cubic-bezier(.2,.8,.2,1)}
+  .card.x{border-color:rgba(255,91,30,.4);background:rgba(255,91,30,.08)}
+  @keyframes slidein{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:translateX(0)}}
+  .card .ci{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex-shrink:0;
+    background:rgba(255,255,255,.08)}
+  .card.x .ci{background:var(--orange);color:#fff}
+  .card .body{flex:1;min-width:0}
+  .card .body .t{font-size:13px;font-weight:600;line-height:1.35;color:#fff}
+  .card .body .t b{font-weight:800;color:var(--orange)}
+  .card .body .ago{font-size:10px;color:var(--mute);font-weight:700;margin-top:2px;letter-spacing:.5px}
+
+  /* ── BOTTOM: top-50 owned players chart ── */
+  .bottom{position:absolute;left:40px;right:40px;bottom:30px;height:230px;
+    background:var(--panel);border:1px solid var(--panel-line);border-radius:20px;
+    padding:16px 24px 14px;backdrop-filter:blur(10px)}
+  .bottom .hd{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+  .bottom .hd .t{font-family:'Archivo';font-weight:900;font-size:18px;letter-spacing:.3px}
+  .bottom .hd .t b{color:var(--orange)}
+  .bottom .hd .sub{font-family:'Archivo Narrow';font-weight:700;letter-spacing:2px;font-size:11px;color:var(--mute)}
+  .bottom .hd .legend{margin-left:auto;font-size:11px;color:var(--mute);font-weight:600}
+  .chart{display:flex;align-items:flex-end;gap:5px;height:158px;overflow:hidden}
+  .bar{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+    height:100%}
+  .bar .nm{font-family:'Archivo Narrow',sans-serif;font-weight:700;font-size:9px;color:var(--mute);
+    writing-mode:vertical-rl;transform:rotate(180deg);height:48px;overflow:hidden;
+    white-space:nowrap;letter-spacing:.5px;margin-bottom:3px;display:flex;align-items:flex-end}
+  .bar .cnt{font-family:'Archivo',sans-serif;font-weight:800;font-size:9.5px;color:#fff;opacity:.9;
+    font-variant-numeric:tabular-nums;margin-bottom:2px}
+  .bar .col{width:100%;border-radius:5px 5px 0 0;
+    background:linear-gradient(180deg,var(--orange),var(--orange-deep));
+    transition:height .8s cubic-bezier(.3,.9,.3,1);min-height:3px}
+  .bar:nth-child(n+11) .col{background:linear-gradient(180deg,#6f6a62,#4b4742)}
+
+  .nowplaying{position:absolute;left:40px;bottom:272px;display:flex;align-items:center;gap:10px;
+    background:var(--panel);border:1px solid var(--panel-line);border-radius:30px;padding:8px 16px 8px 10px;
+    backdrop-filter:blur(8px)}
+  .nowplaying .eq{display:flex;align-items:flex-end;gap:2px;height:16px}
+  .nowplaying .eq i{width:3px;background:var(--orange);border-radius:2px;animation:eq .9s ease-in-out infinite}
+  .nowplaying .eq i:nth-child(2){animation-delay:.2s} .nowplaying .eq i:nth-child(3){animation-delay:.4s}
+  .nowplaying .eq i:nth-child(4){animation-delay:.1s}
+  @keyframes eq{0%,100%{height:4px}50%{height:16px}}
+  .nowplaying .txt{font-size:12px;font-weight:600;color:#fff}
+  .nowplaying .txt span{color:var(--mute);font-weight:700;margin-right:6px;font-size:10px;letter-spacing:1px}
+
+  svg.i{width:20px;height:20px;display:block}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="glow a"></div><div class="glow b"></div>
+
+  <!-- CENTER: fees mechanism + live dev-wallet claims -->
+  <div class="center">
+    <div class="center-hd">
+      <div class="t">CREATOR FEES <b>ENGINE</b></div>
+      <div class="sub">every $FANTABALL trade feeds the ecosystem · live</div>
+    </div>
+
+    <!-- flow schematic -->
+    <div class="flow">
+      <div class="flow-node src">
+        <div class="fn-ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M5 9h12l-3-3M19 15H7l3 3"/></svg></div>
+        <div class="fn-k">TOKEN TRADES</div>
+        <div class="fn-v">$FANTABALL</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node fees">
+        <div class="fn-ic" style="color:var(--orange)"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg></div>
+        <div class="fn-k">CREATOR FEES</div>
+        <div class="fn-v" id="feesTotal">◎0.0</div>
+        <div class="fn-sub">claimed to date</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-split">
+        <div class="sp sp1">
+          <div class="sp-pct">60%</div><div class="sp-k">PRIZE POOL</div>
+          <div class="sp-v" id="sp60">◎0</div>
+          <div class="sp-lock" id="lockedLine">🔒 ◎0 locked for the Final</div>
+        </div>
+        <div class="sp sp2"><div class="sp-pct">30%</div><div class="sp-k">GO BOUNTIES</div><div class="sp-v" id="sp30">◎0</div></div>
+        <div class="sp sp3"><div class="sp-pct">10%</div><div class="sp-k">MARKETING</div><div class="sp-v" id="sp10">◎0</div></div>
+      </div>
+    </div>
+
+    <!-- live claim transactions from dev wallet -->
+    <div class="claims">
+      <div class="claims-hd">
+        <span>⛓ DEV WALLET · FEE CLAIMS</span>
+        <span class="wallet" id="wallet">7xKp…q4Fz</span>
+      </div>
+      <div class="claims-list" id="claims"></div>
+    </div>
+
+    <!-- active bounties (funded by the 30% GO slice) -->
+    <div class="bounties">
+      <div class="bounties-hd">
+        <span>🎯 ACTIVE BOUNTIES · pump.fun GO</span>
+        <span class="bounties-cta" id="bountiesMore">+ more on go.pump.fun · fantaball.tech</span>
+      </div>
+      <div class="bounties-row" id="bounties"></div>
+    </div>
+  </div>
+
+  <!-- HEADER -->
+  <div class="top">
+    <div class="brand">
+      <div class="mark">F</div>
+      <div>
+        <div class="txt">FANTA<b>BALL</b></div>
+        <div class="sub">WORLD CUP 2026 · LIVE</div>
+      </div>
+    </div>
+    <div class="live"><span class="dot"></span> LIVE</div>
+    <div class="clock" id="clock">00:00:00 <span id="upday">DAY 1</span></div>
+  </div>
+
+  <!-- PRIZE POOL -->
+  <div class="pool">
+    <div class="lbl">LIVE PRIZE POOL · PAID IN SOL TO TOP 100</div>
+    <div class="val">◎<b id="pool">312.4</b></div>
+    <div class="meta" id="poolmeta">grows with every trade · funded by creator fees</div>
+  </div>
+
+  <!-- LEFT COLUMN: system counters -->
+  <div class="col-left">
+    <div class="stat">
+      <div class="k">COACHES JOINED</div>
+      <div class="v orange" id="coaches">8,420</div>
+      <div class="d" id="coachesd">▲ +0 just now</div>
+    </div>
+    <div class="stat">
+      <div class="k">SQUADS BUILT</div>
+      <div class="v" id="squads">6,180</div>
+      <div class="d" id="squadsd">▲ +0 just now</div>
+    </div>
+    <div class="milestones">
+      <div class="hd">© MOST-CAPTAINED</div>
+      <div id="capList"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN: on-chain + notifications -->
+  <div class="col-right">
+    <div class="chain">
+      <div class="hd">⛓ $FANTABALL ON-CHAIN</div>
+      <div class="grid">
+        <div class="cell"><div class="k">MARKET CAP</div><div class="v" id="mcap">$284K</div><div class="chg up" id="mcapc">+0.0%</div></div>
+        <div class="cell"><div class="k">VOLUME 24H</div><div class="v" id="vol">$41.2K</div><div class="chg up" id="volc">+0.0%</div></div>
+        <div class="cell"><div class="k">HOLDERS</div><div class="v" id="holders">1,847</div><div class="chg up" id="holdersc">+0</div></div>
+        <div class="cell"><div class="k">PRICE</div><div class="v" id="price">$0.00028</div><div class="chg up" id="pricec">+0.0%</div></div>
+      </div>
+    </div>
+    <div class="notif">
+      <div class="hd">⚡ LIVE FEED</div>
+      <div class="feed" id="feed"></div>
+    </div>
+  </div>
+
+  <!-- now playing (you set the track text; audio is added in OBS) -->
+  <div class="nowplaying">
+    <div class="eq"><i></i><i></i><i></i><i></i></div>
+    <div class="txt"><span>NOW PLAYING</span><span id="np">Deep House Radio</span></div>
+  </div>
+
+  <!-- BOTTOM: top-50 owned players -->
+  <div class="bottom">
+    <div class="hd">
+      <div class="t">TOP 50 <b>MOST-OWNED</b> PLAYERS</div>
+      <div class="sub">BY HOLDER OWNERSHIP · LIVE</div>
+      <div class="legend">■ top 10 &nbsp;·&nbsp; ■ 11–50</div>
+    </div>
+    <div class="chart" id="chart"></div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════
+   DATA SOURCE
+   Demo mode = realistic simulated data so the overlay is alive now.
+   To go live: set DEMO=false and implement fetchLive() to read your
+   FastAPI public endpoints (see backend/public_api.py).
+   ════════════════════════════════════════════════════════════ */
+const DEMO = true;
+const API_BASE = "https://api.fantaball.tech"; // change when live
+
+/* seed player pool for the top-50 chart + milestones */
+const PLAYERS = ["MBAPPE","HAALAND","BELLINGHAM","VINICIUS JR","SAKA","MUSIALA","RODRI","PEDRI","FODEN","KANE",
+"GRIEZMANN","SALAH","LAUTARO","WIRTZ","DE BRUYNE","VAN DIJK","RICE","ODEGAARD","GAVI","VALVERDE",
+"OSIMHEN","LEAO","KVARA","GVARDIOL","MAC ALLISTER","HAKIMI","THEO","UPAMECANO","DOKU","OLMO",
+"YAMAL","WILLIAMS","GULER","ENDRICK","CUBARSI","ZUBIMENDI","BARELLA","TONALI","FRIMPONG","MAINOO",
+"GORDON","PALMER","WATKINS","GAKPO","SZOBOSZLAI","KONATE","DIAZ","NUNEZ","KIMMICH","WIRTZ II"];
+
+let state = {
+  coaches: 8420, squads: 6180, pool: 312.4,
+  mcap: 284, vol: 41.2, holders: 1847, price: 0.00028,
+  owns: PLAYERS.map((n,i)=>({n, c: Math.round(4900*Math.exp(-i*0.075) + Math.random()*120)})),
+  // captains: who coaches pick as captain (×2) — different ordering, forwards dominate
+  caps: ["MBAPPE","HAALAND","SALAH","KANE","VINICIUS JR","LAUTARO","OSIMHEN","BELLINGHAM"]
+    .map((n,i)=>({n, c: Math.round(2100*Math.exp(-i*0.16) + Math.random()*60)})),
+  feesTotal: 520.8,  // total SOL claimed from dev wallet to date
+  lockedTotal: 180.0 // SOL moved to the pool wallet and locked for the Final
+};
+const DEV_WALLET = "7xKp…q4Fz";  // your dev wallet (shortened)
+const POOL_WALLET = "Fp9L…z7Qx"; // dedicated prize-pool wallet (locked for the Final)
+
+/* active bounties on pump.fun GO (top ones shown; full list on go.pump.fun) */
+const BOUNTIES = [
+  {cat:"REACH", t:"Spotlight Stream", d:"Stream with the ticker on screen", rw:"◎1", win:"1 winner"},
+  {cat:"REACH", t:"Viral Post", d:"X post past 20k real views", rw:"◎1", win:"1 winner"},
+  {cat:"LADDER", t:"Bracket Oracle", d:"Most correct R16 results", rw:"◎0.5", win:"1 winner"},
+];
+const BOUNTY_TOTAL = 6; // total live bounties (rest shown via CTA)
+
+const HANDLES = ["@justafoolgoy","@degenmike","@sol_sammy","@cryptowiz","@ftbl_chad","@apekeeper","@0xfrog",
+"@meta_messi","@gmgary","@onchain_oli","@pumpqueen","@vinnie_sol","@lambo_luca","@bagholder_b","@solsniper"];
+const PLAYERS_SHORT = PLAYERS.slice(0,30);
+
+function fmt(n){ return n.toLocaleString("en-US"); }
+function fmtUsd(k){ return k>=1000 ? "$"+(k/1000).toFixed(2)+"M" : "$"+Math.round(k)+"K"; }
+
+/* ── RENDERERS ── */
+function renderChart(){
+  const max = Math.max(...state.owns.map(o=>o.c));
+  document.getElementById("chart").innerHTML = state.owns.slice(0,50).map(o=>`
+    <div class="bar">
+      <div class="nm">${o.n}</div>
+      <div class="cnt">${o.c}</div>
+      <div class="col" style="height:${(o.c/max*100).toFixed(1)}%"></div>
+    </div>`).join("");
+}
+function renderCaptains(){
+  const top = [...state.caps].sort((a,b)=>b.c-a.c).slice(0,4);
+  const totalCaps = state.caps.reduce((s,c)=>s+c.c,0);
+  document.getElementById("capList").innerHTML = top.map(o=>{
+    const pct = ((o.c/totalCaps)*100).toFixed(0);
+    return `<div class="ms">
+      <div class="badge">C</div>
+      <div class="nm">${o.n}<div style="font-size:10px;color:var(--mute);font-weight:600;margin-top:1px">${pct}% of armbands</div></div>
+      <div class="ct">${fmt(o.c)}<span>©</span></div>
+    </div>`;
+  }).join("");
+}
+function setText(id,v){ const e=document.getElementById(id); if(e) e.textContent=v; }
+function renderFees(){
+  setText("feesTotal","◎"+state.feesTotal.toFixed(1));
+  setText("sp60","◎"+(state.feesTotal*0.60).toFixed(1));
+  setText("sp30","◎"+(state.feesTotal*0.30).toFixed(1));
+  setText("sp10","◎"+(state.feesTotal*0.10).toFixed(1));
+  setText("wallet", DEV_WALLET);
+  setText("lockedLine","🔒 ◎"+state.lockedTotal.toFixed(0)+" locked for the Final");
+}
+
+// Called when you lock SOL into the dedicated pool wallet ahead of the Final.
+// Fires a claims-style entry + a feed notification (per the request).
+function pushLock(amt){
+  state.lockedTotal += amt;
+  renderFees();
+  const claimsEl=document.getElementById("claims");
+  const el=document.createElement("div");
+  el.className="claim";
+  const t=new Date();
+  const hh=String(t.getHours()).padStart(2,"0"), mm=String(t.getMinutes()).padStart(2,"0"), ss=String(t.getSeconds()).padStart(2,"0");
+  el.innerHTML=`
+    <div class="cic" style="background:rgba(78,255,167,.16);color:#4effa7">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+    <div class="cbody">
+      <div class="camt">◎${amt.toFixed(2)} <span style="color:#4effa7">LOCKED</span></div>
+      <div class="cmeta">moved to pool wallet ${POOL_WALLET} · held until the Final</div>
+    </div>
+    <div style="text-align:right"><div class="ctime">${hh}:${mm}:${ss}</div><div class="ctx">total ◎${state.lockedTotal.toFixed(0)}</div></div>`;
+  claimsEl.prepend(el);
+  while(claimsEl.children.length>2) claimsEl.removeChild(claimsEl.lastChild);
+  pushFeed(`🔒 <b>◎${amt.toFixed(0)}</b> locked for the Final · pool secured`, false);
+}
+function renderBounties(){
+  document.getElementById("bounties").innerHTML = BOUNTIES.map(b=>`
+    <div class="bounty">
+      <span class="bcat">${b.cat}</span>
+      <div class="bt">${b.t}</div>
+      <div class="bd">${b.d}</div>
+      <div class="bf"><span class="brw">${b.rw}</span><span class="bwin">${b.win}</span></div>
+    </div>`).join("");
+  const more = BOUNTY_TOTAL - BOUNTIES.length;
+  setText("bountiesMore", `+${more} more on go.pump.fun · fantaball.tech`);
+}
+function randomTx(){ return Math.random().toString(36).slice(2,6)+"…"+Math.random().toString(36).slice(2,6); }
+function pushClaim(amt){
+  const claimsEl=document.getElementById("claims");
+  const el=document.createElement("div");
+  el.className="claim";
+  const t=new Date();
+  const hh=String(t.getHours()).padStart(2,"0"), mm=String(t.getMinutes()).padStart(2,"0"), ss=String(t.getSeconds()).padStart(2,"0");
+  el.innerHTML=`
+    <div class="cic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg></div>
+    <div class="cbody">
+      <div class="camt">◎${amt.toFixed(2)} <span>CLAIMED</span></div>
+      <div class="cmeta">split → ◎${(amt*0.6).toFixed(2)} pool · ◎${(amt*0.3).toFixed(2)} GO · ◎${(amt*0.1).toFixed(2)} mkt</div>
+    </div>
+    <div style="text-align:right">
+      <div class="ctime">${hh}:${mm}:${ss}</div>
+      <div class="ctx">tx ${randomTx()}</div>
+    </div>`;
+  claimsEl.prepend(el);
+  while(claimsEl.children.length>2) claimsEl.removeChild(claimsEl.lastChild);
+}
+function renderStats(){
+  setText("coaches", fmt(state.coaches));
+  setText("squads", fmt(state.squads));
+  setText("pool", state.pool.toFixed(1));
+  setText("mcap", fmtUsd(state.mcap));
+  setText("vol", fmtUsd(state.vol));
+  setText("holders", fmt(state.holders));
+  setText("price", "$"+state.price.toFixed(5));
+}
+
+/* live feed */
+const feed = document.getElementById("feed");
+function pushFeed(html, isX){
+  const el = document.createElement("div");
+  el.className = "card" + (isX?" x":"");
+  el.innerHTML = `
+    <div class="ci">${isX
+      ? '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M4 4l7 9M20 20l-7.5-9.7M4 20l6-6.5M20 4l-6.2 6.8"/></svg>'
+      : '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>'}</div>
+    <div class="body"><div class="t">${html}</div><div class="ago">just now</div></div>`;
+  feed.prepend(el);
+  // age older items, cap to 7
+  [...feed.children].forEach((c,i)=>{ if(i>0){ const a=c.querySelector(".ago"); if(a&&a.textContent==="just now") a.textContent=(i*7)+"s ago"; }});
+  while(feed.children.length>7) feed.removeChild(feed.lastChild);
+}
+
+/* ── SIMULATION (DEMO) ── */
+function tick(){
+  // counters drift up
+  const dC = Math.floor(Math.random()*4);
+  const dS = Math.floor(Math.random()*3);
+  state.coaches += dC; state.squads += dS;
+  if(dC) setText("coachesd","▲ +"+dC+" just now");
+  if(dS) setText("squadsd","▲ +"+dS+" just now");
+  // pool + chain wiggle
+  state.pool += Math.random()*0.4;
+  state.vol += (Math.random()-0.3)*0.8;
+  state.mcap += (Math.random()-0.3)*1.5;
+  if(Math.random()<0.25) state.holders += 1;
+  state.price = state.mcap/1000000*3.5/1000 + 0.00026;
+  setText("mcapc", (state.mcap>=284?"+":"")+(((state.mcap-284)/284*100).toFixed(1))+"%");
+  setText("volc", (state.vol>=41.2?"+":"")+(((state.vol-41.2)/41.2*100).toFixed(1))+"%");
+  setText("holdersc", "+"+(state.holders-1847));
+  setText("pricec", (state.price>=0.00028?"+":"")+(((state.price-0.00028)/0.00028*100).toFixed(1))+"%");
+  document.getElementById("mcapc").className="chg "+(state.mcap>=284?"up":"down");
+  document.getElementById("volc").className="chg "+(state.vol>=41.2?"up":"down");
+  document.getElementById("pricec").className="chg "+(state.price>=0.00028?"up":"down");
+  // a player gets picked
+  const idx = Math.floor(Math.random()*Math.min(20,state.owns.length));
+  state.owns[idx].c += Math.floor(Math.random()*3)+1;
+  state.owns.sort((a,b)=>b.c-a.c);
+  // a captain gets chosen
+  if(Math.random()<0.6){
+    const ci = Math.floor(Math.random()*state.caps.length);
+    state.caps[ci].c += Math.floor(Math.random()*2)+1;
+  }
+  renderStats(); renderChart(); renderCaptains();
+}
+
+function randomEvent(){
+  const r = Math.random();
+  if(r < 0.4){
+    const h = HANDLES[Math.floor(Math.random()*HANDLES.length)];
+    pushFeed(`<b>${h}</b> just shared their squad on X`, true);
+  } else if(r < 0.7){
+    const p = PLAYERS_SHORT[Math.floor(Math.random()*PLAYERS_SHORT.length)];
+    const o = state.owns.find(x=>x.n===p);
+    pushFeed(`<b>${p}</b> picked by ${o?fmt(o.c):"—"} coaches`, false);
+  } else if(r < 0.88){
+    pushFeed(`A new coach just built squad #<b>${fmt(state.squads)}</b>`, false);
+  } else {
+    pushFeed(`Prize pool crossed <b>◎${state.pool.toFixed(0)}</b>`, false);
+  }
+}
+
+/* clock + day counter (h24 stream, day 1-3) */
+const startTs = Date.now();
+function clock(){
+  const t = Math.floor((Date.now()-startTs)/1000);
+  const hh = String(Math.floor(t/3600)%24).padStart(2,"0");
+  const mm = String(Math.floor(t/60)%60).padStart(2,"0");
+  const ss = String(t%60).padStart(2,"0");
+  document.getElementById("clock").childNodes[0].nodeValue = `${hh}:${mm}:${ss} `;
+  const day = Math.min(3, Math.floor(t/86400)+1);
+  setText("upday", "DAY "+day);
+}
+
+/* ── LIVE MODE (wire to FastAPI later) ── */
+async function fetchLive(){
+  try{
+    const r = await fetch(`${API_BASE}/public/stream/state`);
+    const d = await r.json();
+    // map d -> state, then renderStats/renderChart/renderCaptains()
+    Object.assign(state, d); renderStats(); renderChart(); renderCaptains();
+  }catch(e){ /* keep last good state */ }
+}
+
+/* ── BOOT ── */
+renderStats(); renderChart(); renderCaptains(); renderFees(); renderBounties();
+for(let i=0;i<4;i++) setTimeout(randomEvent, i*600);
+// seed a couple of recent claims
+[2.4, 3.1].forEach((a,i)=>setTimeout(()=>pushClaim(a), 400+i*500));
+setInterval(clock, 1000);
+if(DEMO){
+  setInterval(tick, 1800);
+  setInterval(randomEvent, 3400);
+  // dev-wallet claim every ~22s
+  setInterval(()=>{
+    const amt = 1.5 + Math.random()*3.5;
+    state.feesTotal += amt;
+    renderFees();
+    pushClaim(amt);
+    pushFeed(`Dev wallet claimed <b>◎${amt.toFixed(2)}</b> in fees → pool +◎${(amt*0.6).toFixed(2)}`, false);
+  }, 22000);
+  // periodic SOL lock toward the Final (~every 70s in demo; in production you
+  // trigger this when you actually lock funds in the pool wallet)
+  setInterval(()=>{ pushLock(10 + Math.round(Math.random()*15)); }, 70000);
+  setTimeout(()=>pushLock(12), 9000); // one early lock so it's visible on load
+}else{
+  setInterval(fetchLive, 5000);
+}
+</script>
+</body>
+</html>

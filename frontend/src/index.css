@@ -1,0 +1,20 @@
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { margin: 0; padding: 0; min-height: 100%; }
+body {
+  background: #faf8f5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+}
+input, button { font-family: inherit; }
+a { -webkit-tap-highlight-color: transparent; }
+
+/* App centers via its own margin:auto; on mobile it fills the full width.
+   On desktop it sits on a branded backdrop. */
+@media (min-width: 720px) {
+  body {
+    background:
+      radial-gradient(1100px 520px at 50% -8%, rgba(255,106,26,.16), transparent 60%),
+      linear-gradient(180deg, #14110e 0%, #0c0a08 100%);
+  }
+}

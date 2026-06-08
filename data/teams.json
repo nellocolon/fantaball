@@ -1,0 +1,290 @@
+[
+  {
+    "code": "ALG",
+    "country": "Algeria",
+    "coach": "PETKOVIC Vladimir",
+    "coach_nationality": "Switzerland"
+  },
+  {
+    "code": "ARG",
+    "country": "Argentina",
+    "coach": "SCALONI Lionel",
+    "coach_nationality": "Argentina"
+  },
+  {
+    "code": "AUS",
+    "country": "Australia",
+    "coach": "POPOVIC Tony",
+    "coach_nationality": "Australia"
+  },
+  {
+    "code": "AUT",
+    "country": "Austria",
+    "coach": "RANGNICK Ralf",
+    "coach_nationality": "Germany"
+  },
+  {
+    "code": "BEL",
+    "country": "Belgium",
+    "coach": "GARCIA Rudi",
+    "coach_nationality": "France"
+  },
+  {
+    "code": "BIH",
+    "country": "Bosnia And Herzegovina",
+    "coach": "BARBAREZ Sergej",
+    "coach_nationality": "Bosnia And Herzegovina"
+  },
+  {
+    "code": "BRA",
+    "country": "Brazil",
+    "coach": "ANCELOTTI Carlo",
+    "coach_nationality": "Italy"
+  },
+  {
+    "code": "CPV",
+    "country": "Cabo Verde",
+    "coach": "BUBISTA",
+    "coach_nationality": "Cabo Verde"
+  },
+  {
+    "code": "CAN",
+    "country": "Canada",
+    "coach": "MARSCH Jesse",
+    "coach_nationality": "USA"
+  },
+  {
+    "code": "COL",
+    "country": "Colombia",
+    "coach": "LORENZO Nestor",
+    "coach_nationality": "Argentina"
+  },
+  {
+    "code": "COD",
+    "country": "Congo DR",
+    "coach": "DESABRE Sebastien",
+    "coach_nationality": "France"
+  },
+  {
+    "code": "CIV",
+    "country": "Côte D'Ivoire",
+    "coach": "FAE Emerse",
+    "coach_nationality": "Côte D'Ivoire"
+  },
+  {
+    "code": "CRO",
+    "country": "Croatia",
+    "coach": "DALIC Zlatko",
+    "coach_nationality": "Croatia"
+  },
+  {
+    "code": "CUW",
+    "country": "Curaçao",
+    "coach": "ADVOCAAT Dick",
+    "coach_nationality": "Netherlands"
+  },
+  {
+    "code": "CZE",
+    "country": "Czechia",
+    "coach": "KOUBEK Miroslav",
+    "coach_nationality": "Czech Republic"
+  },
+  {
+    "code": "ECU",
+    "country": "Ecuador",
+    "coach": "BECCACECE Sebastian",
+    "coach_nationality": "Argentina"
+  },
+  {
+    "code": "EGY",
+    "country": "Egypt",
+    "coach": "HOSSAM HASSAN",
+    "coach_nationality": "Egypt"
+  },
+  {
+    "code": "ENG",
+    "country": "England",
+    "coach": "TUCHEL Thomas",
+    "coach_nationality": "Germany"
+  },
+  {
+    "code": "FRA",
+    "country": "France",
+    "coach": "DESCHAMPS Didier",
+    "coach_nationality": "France"
+  },
+  {
+    "code": "GER",
+    "country": "Germany",
+    "coach": "NAGELSMANN Julian",
+    "coach_nationality": "Germany"
+  },
+  {
+    "code": "GHA",
+    "country": "Ghana",
+    "coach": "CARLOS QUEIROZ",
+    "coach_nationality": "Portugal"
+  },
+  {
+    "code": "HAI",
+    "country": "Haiti",
+    "coach": "MIGNE Sebastien",
+    "coach_nationality": "France"
+  },
+  {
+    "code": "IRN",
+    "country": "IR Iran",
+    "coach": "GHALEHNOY Amir",
+    "coach_nationality": "IR Iran"
+  },
+  {
+    "code": "IRQ",
+    "country": "Iraq",
+    "coach": "ARNOLD Graham",
+    "coach_nationality": "Australia"
+  },
+  {
+    "code": "JPN",
+    "country": "Japan",
+    "coach": "MORIYASU Hajime",
+    "coach_nationality": "Japan"
+  },
+  {
+    "code": "JOR",
+    "country": "Jordan",
+    "coach": "SELLAMI Jamal",
+    "coach_nationality": "Morocco"
+  },
+  {
+    "code": "KOR",
+    "country": "Korea Republic",
+    "coach": "HONG Myungbo",
+    "coach_nationality": "Korea Republic"
+  },
+  {
+    "code": "MEX",
+    "country": "Mexico",
+    "coach": "AGUIRRE Javier",
+    "coach_nationality": "Mexico"
+  },
+  {
+    "code": "MAR",
+    "country": "Morocco",
+    "coach": "OUAHBI Mohamed",
+    "coach_nationality": "Morocco"
+  },
+  {
+    "code": "NED",
+    "country": "Netherlands",
+    "coach": "KOEMAN Ronald",
+    "coach_nationality": "Netherlands"
+  },
+  {
+    "code": "NZL",
+    "country": "New Zealand",
+    "coach": "BAZELEY Darren",
+    "coach_nationality": "New Zealand"
+  },
+  {
+    "code": "NOR",
+    "country": "Norway",
+    "coach": "SOLBAKKEN Stale",
+    "coach_nationality": "Norway"
+  },
+  {
+    "code": "PAN",
+    "country": "Panama",
+    "coach": "CHRISTIANSEN Thomas",
+    "coach_nationality": "Spain"
+  },
+  {
+    "code": "PAR",
+    "country": "Paraguay",
+    "coach": "ALFARO Gustavo",
+    "coach_nationality": "Argentina"
+  },
+  {
+    "code": "POR",
+    "country": "Portugal",
+    "coach": "MARTINEZ Roberto",
+    "coach_nationality": "Spain"
+  },
+  {
+    "code": "QAT",
+    "country": "Qatar",
+    "coach": "LOPETEGUI Julen",
+    "coach_nationality": "Spain"
+  },
+  {
+    "code": "KSA",
+    "country": "Saudi Arabia",
+    "coach": "DONIS Georgios",
+    "coach_nationality": "Greece"
+  },
+  {
+    "code": "SCO",
+    "country": "Scotland",
+    "coach": "CLARKE Steve",
+    "coach_nationality": "Scotland"
+  },
+  {
+    "code": "SEN",
+    "country": "Senegal",
+    "coach": "THIAW Pape",
+    "coach_nationality": "Senegal"
+  },
+  {
+    "code": "RSA",
+    "country": "South Africa",
+    "coach": "BROOS Hugo",
+    "coach_nationality": "Belgium"
+  },
+  {
+    "code": "ESP",
+    "country": "Spain",
+    "coach": "DE LA FUENTE Luis",
+    "coach_nationality": "Spain"
+  },
+  {
+    "code": "SWE",
+    "country": "Sweden",
+    "coach": "POTTER Graham",
+    "coach_nationality": "England"
+  },
+  {
+    "code": "SUI",
+    "country": "Switzerland",
+    "coach": "YAKIN Murat",
+    "coach_nationality": "Switzerland"
+  },
+  {
+    "code": "TUN",
+    "country": "Tunisia",
+    "coach": "LAMOUCHI Sabri",
+    "coach_nationality": "France"
+  },
+  {
+    "code": "TUR",
+    "country": "Türkiye",
+    "coach": "MONTELLA Vincenzo",
+    "coach_nationality": "Italy"
+  },
+  {
+    "code": "URU",
+    "country": "Uruguay",
+    "coach": "BIELSA Marcelo",
+    "coach_nationality": "Argentina"
+  },
+  {
+    "code": "USA",
+    "country": "USA",
+    "coach": "POCHETTINO Mauricio",
+    "coach_nationality": "Argentina"
+  },
+  {
+    "code": "UZB",
+    "country": "Uzbekistan",
+    "coach": "CANNAVARO Fabio",
+    "coach_nationality": "Italy"
+  }
+]

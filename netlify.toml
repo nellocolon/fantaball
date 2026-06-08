@@ -1,0 +1,14 @@
+# Netlify config — must live at the repository ROOT.
+# Builds the Vite app inside frontend/ and publishes frontend/dist.
+# Add in Netlify → Environment variables:
+#   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (anon public key, not service_role)
+
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"            # relative to base -> frontend/dist
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Fantaball — Logo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet"/>
+<style>
+  :root{ --orange:#ff6a1a; --ink:#16130f; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; overflow:hidden; }
+  body{ background: radial-gradient(circle at 50% 42%, #e7e3dd 0%, #cfcbc4 55%, #b7b3ab 100%);
+        font-family:'JetBrains Mono',monospace; transition:background .4s ease; }
+  body.dark{ background: radial-gradient(circle at 50% 42%, #1a1714 0%, #0e0c0a 60%, #050403 100%); }
+  #stage{ position:fixed; inset:0; }
+  canvas{ display:block; }
+
+  #panel{ position:fixed; left:16px; top:16px; z-index:10; width:212px;
+    background:rgba(20,19,15,.82); color:#f3efe9; border:1px solid rgba(255,106,26,.35);
+    border-radius:14px; padding:14px 14px 12px; backdrop-filter:blur(8px); user-select:none; }
+  #panel h1{ font-family:'Bebas Neue',sans-serif; font-size:24px; letter-spacing:1px; margin:0 0 2px; }
+  #panel h1 b{ color:var(--orange); font-weight:400; }
+  #panel .sub{ font-size:9.5px; opacity:.6; letter-spacing:.5px; margin-bottom:12px; line-height:1.4; }
+  .row{ margin:10px 0; }
+  .lbl{ font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:1px; opacity:.85; margin-bottom:5px; display:flex; justify-content:space-between; }
+  .lbl span{ color:var(--orange); font-family:'JetBrains Mono'; font-size:11px; }
+  .seg{ display:flex; gap:6px; }
+  .seg button, .ctl{ flex:1; padding:7px 0; border-radius:8px; border:1px solid rgba(255,255,255,.16);
+    background:rgba(255,255,255,.05); color:#f3efe9; font-family:'Bebas Neue',sans-serif; letter-spacing:.8px;
+    font-size:13px; cursor:pointer; transition:.15s; }
+  .seg button:hover,.ctl:hover{ border-color:var(--orange); }
+  .seg button.on{ background:var(--orange); border-color:var(--orange); color:#16130f; }
+  input[type=range]{ width:100%; accent-color:var(--orange); }
+  select{ width:100%; padding:6px; border-radius:8px; background:rgba(255,255,255,.05); color:#f3efe9;
+    border:1px solid rgba(255,255,255,.16); font-family:'JetBrains Mono'; font-size:11px; }
+  #gifBtn{ width:100%; margin-top:6px; padding:11px 0; border:none; border-radius:10px; background:var(--orange);
+    color:#16130f; font-family:'Bebas Neue',sans-serif; font-size:17px; letter-spacing:1.2px; cursor:pointer; }
+  #gifBtn:disabled{ opacity:.55; cursor:default; }
+  #status{ font-size:10px; opacity:.75; margin-top:8px; min-height:13px; line-height:1.4; }
+  #status a{ color:var(--orange); }
+  .hint{ font-size:9px; opacity:.5; margin-top:8px; line-height:1.4; }
+  #collapse{ position:absolute; right:10px; top:12px; cursor:pointer; opacity:.6; font-size:14px; }
+  #panel.min .body{ display:none; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+
+<div id="panel">
+  <div id="collapse" title="mostra/nascondi">▾</div>
+  <h1>FANTA<b>BALL</b></h1>
+  <div class="sub">Logo animato · loop perfetto<br/>(1° frame = ultimo frame)</div>
+  <div class="body">
+    <div class="row">
+      <div class="lbl">GIRI <span id="turnsV">1</span></div>
+      <div class="seg" id="turns">
+        <button data-t="1" class="on">1</button>
+        <button data-t="2">2</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="lbl">DURATA LOOP <span id="durV">9s</span></div>
+      <input type="range" id="dur" min="4" max="16" step="0.5" value="9"/>
+    </div>
+    <div class="row">
+      <div class="lbl">SFONDO</div>
+      <div class="seg" id="bg">
+        <button data-b="light" class="on">CHIARO</button>
+        <button data-b="dark">SCURO</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="lbl">GIF · DIMENSIONE</div>
+      <select id="size">
+        <option value="480">480 × 480</option>
+        <option value="720" selected>720 × 720</option>
+        <option value="1000">1000 × 1000</option>
+      </select>
+    </div>
+    <div class="row">
+      <div class="lbl">GIF · FRAME</div>
+      <select id="frames">
+        <option value="48">48 (leggera)</option>
+        <option value="72" selected>72 (fluida)</option>
+        <option value="96">96 (extra)</option>
+      </select>
+    </div>
+    <button id="gifBtn">CREA GIF LOOP</button>
+    <div id="status"></div>
+    <div class="hint">La GIF rende frame a angoli esatti su un giro intero: il loop è perfetto. Niente da ritagliare.</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  if (typeof THREE === 'undefined') {
+    document.body.innerHTML =
+      '<div style="font-family:sans-serif;color:#16130f;max-width:520px;margin:18vh auto;padding:0 24px;text-align:center">' +
+      '<h2 style="font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px">Three.js non caricato</h2>' +
+      '<p>La libreria 3D non è stata scaricata (connessione assente o CDN bloccato). ' +
+      'Apri il file con una connessione attiva, oppure servilo via http (non come anteprima sandboxata).</p></div>';
+    return;
+  }
+
+  // ---------- config ----------
+  var R = 8.0;          // sphere radius
+  var S = 1.0;          // spacing between cubes (>cube diagonal => never touch)
+  var CUBE = 0.42;      // cube edge
+  var BLACK_ANG = 0.30; // angular radius of each black patch (rad)
+  var SURF_BAND = 1.0;  // only the outer shell can be black
+
+  var state = {
+    turns: 1,
+    duration: 9,        // seconds per loop (also the GIF length)
+    bg: 'light',
+    gifSize: 720,
+    gifFrames: 72,
+    capturing: false
+  };
+  var BG = { light: 0xe2ded7, dark: 0x0e0c0a };
+
+  // ---------- scene ----------
+  var stage = document.getElementById('stage');
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+  camera.position.set(0, 0, 26);
+
+  var renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false, preserveDrawingBuffer:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  renderer.setClearColor(BG[state.bg], 1);
+  stage.appendChild(renderer.domElement);
+
+  // ---------- lights ----------
+  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+  var hemi = new THREE.HemisphereLight(0xfff1e0, 0x3a2410, 0.7); scene.add(hemi);
+  var key = new THREE.DirectionalLight(0xffffff, 1.15); key.position.set(8, 12, 10); scene.add(key);
+  var rim = new THREE.DirectionalLight(0xffb070, 0.8); rim.position.set(-10, -4, -8); scene.add(rim);
+  var core = new THREE.PointLight(0xff7a26, 1.6, 40, 2); core.position.set(0,0,0); scene.add(core);
+
+  // ---------- geometry of the planet ----------
+  var phi = (1 + Math.sqrt(5)) / 2;
+  var icoRaw = [[0,1,phi],[0,1,-phi],[0,-1,phi],[0,-1,-phi],[1,phi,0],[1,-phi,0],
+                [-1,phi,0],[-1,-phi,0],[phi,0,1],[phi,0,-1],[-phi,0,1],[-phi,0,-1]];
+  var ico = icoRaw.map(function(v){ var l=Math.hypot(v[0],v[1],v[2]); return [v[0]/l,v[1]/l,v[2]/l]; });
+
+  function fibSphere(n){
+    var p=[], ga=Math.PI*(3-Math.sqrt(5));
+    for(var i=0;i<n;i++){
+      var y = n===1 ? 0 : 1-(i/(n-1))*2;
+      var r = Math.sqrt(Math.max(0,1-y*y));
+      var t = ga*i;
+      p.push([Math.cos(t)*r, y, Math.sin(t)*r]);
+    }
+    return p;
+  }
+
+  // build the three buckets of instances
+  var planet = new THREE.Group();
+  scene.add(planet);
+
+  function buildPlanet(){
+    for(var k=planet.children.length-1;k>=0;k--){ planet.remove(planet.children[k]); }
+
+    var orange=[], amber=[], black=[];
+    for(var r=R; r>=S*0.5; r-=S){
+      var n = Math.max(1, Math.round(4*Math.PI*r*r/(S*S)));
+      var dirs = fibSphere(n);
+      for(var i=0;i<dirs.length;i++){
+        var d = dirs[i];
+        var x=d[0]*r, y=d[1]*r, z=d[2]*r;
+        var isBlack=false;
+        if(r >= R-SURF_BAND){
+          var best=-1;
+          for(var j=0;j<ico.length;j++){ var dot=d[0]*ico[j][0]+d[1]*ico[j][1]+d[2]*ico[j][2]; if(dot>best)best=dot; }
+          isBlack = Math.acos(Math.min(1,best)) < BLACK_ANG;
+        }
+        var rec = { x:x, y:y, z:z,
+          rx:Math.random()*Math.PI, ry:Math.random()*Math.PI, rz:Math.random()*Math.PI,
+          sc: 0.8 + Math.random()*0.32 };
+        if(isBlack) black.push(rec);
+        else if(Math.random() < 0.7) orange.push(rec);
+        else amber.push(rec);
+      }
+    }
+
+    var geo = new THREE.BoxGeometry(CUBE, CUBE, CUBE);
+    var matOrange = new THREE.MeshStandardMaterial({ color:0xff6a1a, emissive:0xff4d00, emissiveIntensity:0.38,
+      roughness:0.22, metalness:0.0, transparent:true, opacity:0.80, depthWrite:false });
+    var matAmber = new THREE.MeshStandardMaterial({ color:0xc23d0a, emissive:0x7a2400, emissiveIntensity:0.28,
+      roughness:0.28, metalness:0.05, transparent:true, opacity:0.88, depthWrite:false });
+    var matBlack = new THREE.MeshStandardMaterial({ color:0x121212, emissive:0x000000, emissiveIntensity:0.0,
+      roughness:0.30, metalness:0.35, transparent:true, opacity:0.74, depthWrite:false });
+
+    var dummy = new THREE.Object3D();
+    function makeMesh(list, mat){
+      var m = new THREE.InstancedMesh(geo, mat, list.length);
+      for(var i=0;i<list.length;i++){
+        var c=list[i];
+        dummy.position.set(c.x,c.y,c.z);
+        dummy.rotation.set(c.rx,c.ry,c.rz);
+        dummy.scale.setScalar(c.sc);
+        dummy.updateMatrix();
+        m.setMatrixAt(i, dummy.matrix);
+      }
+      m.instanceMatrix.needsUpdate=true;
+      return m;
+    }
+    // all three are translucent; draw black last so the patches read on the near surface
+    planet.add(makeMesh(amber, matAmber));
+    planet.add(makeMesh(orange, matOrange));
+    planet.add(makeMesh(black, matBlack));
+  }
+  buildPlanet();
+
+  // a fixed planet tilt; we spin around the (tilted) Y axis only -> perfect loop
+  planet.rotation.x = 0.42;
+  planet.rotation.z = 0.12;
+  var BASE_Y = 0.0;
+
+  // ---------- sizing ----------
+  function resize(w, h){
+    camera.aspect = w/h; camera.updateProjectionMatrix();
+    renderer.setSize(w, h, true);
+  }
+  function fit(){ resize(window.innerWidth, window.innerHeight); }
+  window.addEventListener('resize', fit); fit();
+
+  // ---------- live animation (seamless on-screen too) ----------
+  var start = performance.now();
+  function phaseNow(){
+    var t = ((performance.now() - start) / 1000) % state.duration;
+    return t / state.duration;            // 0..1
+  }
+  function renderAt(phase){
+    planet.rotation.y = BASE_Y + phase * state.turns * Math.PI * 2;
+    renderer.render(scene, camera);
+  }
+  function loop(){
+    if(!state.capturing){ renderAt(phaseNow()); }
+    requestAnimationFrame(loop);
+  }
+  loop();
+
+  // ---------- controls ----------
+  function bindSeg(id, key, after){
+    var box=document.getElementById(id);
+    box.addEventListener('click', function(e){
+      var b=e.target.closest('button'); if(!b) return;
+      [].forEach.call(box.children, function(c){ c.classList.remove('on'); });
+      b.classList.add('on');
+      var v=b.dataset.t!==undefined?+b.dataset.t:b.dataset.b;
+      state[key]=v; if(after) after(v);
+    });
+  }
+  bindSeg('turns','turns', function(v){ document.getElementById('turnsV').textContent=v; start=performance.now(); });
+  bindSeg('bg','bg', function(v){
+    document.body.classList.toggle('dark', v==='dark');
+    renderer.setClearColor(BG[v], 1);
+  });
+  document.getElementById('dur').addEventListener('input', function(e){
+    state.duration=+e.target.value; document.getElementById('durV').textContent=state.duration+'s'; start=performance.now();
+  });
+  document.getElementById('size').addEventListener('change', function(e){ state.gifSize=+e.target.value; });
+  document.getElementById('frames').addEventListener('change', function(e){ state.gifFrames=+e.target.value; });
+  document.getElementById('collapse').addEventListener('click', function(){
+    document.getElementById('panel').classList.toggle('min');
+    this.textContent = document.getElementById('panel').classList.contains('min') ? '▸' : '▾';
+  });
+
+  // ---------- perfect-loop GIF export ----------
+  var statusEl = document.getElementById('status');
+  var gifBtn = document.getElementById('gifBtn');
+  function setStatus(t){ statusEl.innerHTML = t; }
+
+  async function workerBlobUrl(){
+    var res = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
+    var txt = await res.text();
+    return URL.createObjectURL(new Blob([txt], { type:'application/javascript' }));
+  }
+
+  gifBtn.addEventListener('click', async function(){
+    if(state.capturing) return;
+    state.capturing = true; gifBtn.disabled = true;
+    setStatus('Preparo il worker…');
+
+    var SIZE = state.gifSize, FRAMES = state.gifFrames;
+    var delay = Math.round(state.duration * 1000 / FRAMES);
+
+    try{
+      var wurl = await workerBlobUrl();
+      resize(SIZE, SIZE);
+
+      var gif = new GIF({ workers:Math.min(4, navigator.hardwareConcurrency||2), quality:10,
+        width:SIZE, height:SIZE, workerScript:wurl, repeat:0,
+        background:'#'+BG[state.bg].toString(16).padStart(6,'0') });
+
+      var progressed = false;
+      gif.on('progress', function(p){ progressed=true; setStatus('Codifico GIF… '+Math.round(p*100)+'%'); });
+      gif.on('finished', function(blob){
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = 'fantaball-logo.gif'; a.click();
+        setStatus('Fatto ✓ — <a href="'+url+'" download="fantaball-logo.gif">scarica di nuovo</a>');
+        fit(); state.capturing=false; gifBtn.disabled=false; start=performance.now();
+      });
+
+      for(var i=0;i<FRAMES;i++){
+        renderAt(i / FRAMES);
+        gif.addFrame(renderer.domElement, { copy:true, delay:delay });
+        if(i % 6 === 0){ setStatus('Catturo frame '+(i+1)+'/'+FRAMES+'…'); await new Promise(requestAnimationFrame); }
+      }
+      setStatus('Codifico GIF… 0%');
+      gif.render();
+      setTimeout(function(){
+        if(!progressed && state.capturing){
+          setStatus('⚠ Bloccato a 0%. L\'anteprima in chat blocca i Web Worker.<br/>Scarica l\'HTML e aprilo nel browser (doppio click): lì la GIF si genera.');
+        }
+      }, 9000);
+    }catch(err){
+      setStatus('Errore: '+(err && err.message ? err.message : err));
+      fit(); state.capturing=false; gifBtn.disabled=false; start=performance.now();
+    }
+  });
+})();
+</script>
+</body>
+</html>
