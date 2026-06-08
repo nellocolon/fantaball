@@ -38,3 +38,6 @@ logs/
 
 # Backend specific (if any)
 backend/.env
+frontend/.env
+*.env
+backend/.env
