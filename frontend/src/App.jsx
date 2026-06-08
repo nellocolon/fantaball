@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, createContext, useContext } from "react";
 import { toPng } from "html-to-image";
-import { getPlayers, getLeaderboard, saveRoster, getMyRoster, saveLineup, getLineup, getFixtures, HAS_SUPABASE, computeFormationLock } from "./lib/data";
+import { getPlayers, getLeaderboard, saveRoster, getMyRoster, saveLineup, getLineup, getFixtures, getScorers, getAssists, getCards, getStandings, getBracket, HAS_SUPABASE, computeFormationLock } from "./lib/data";
 import { initAuth, onAuthChange, signInWithX, signOut, connectWallet } from "./lib/auth";
 
 // ─── ICON SYSTEM (monochrome SVG, inherits currentColor) ──────────────────
@@ -21,6 +21,8 @@ function Icon({ name, size=20, stroke=2, style }){
       return (<svg viewBox="0 0 24 24" style={s}><circle cx="12" cy="12" r="9" {...common}/><path d="M12 7v10M9.5 9.2a2.5 2 0 0 1 5 0M9.5 14.8a2.5 2 0 0 0 5 0M9 12h6" {...common}/></svg>);
     case "info":
       return (<svg viewBox="0 0 24 24" style={s}><circle cx="12" cy="12" r="9" {...common}/><path d="M12 11v5M12 8h.01" {...common}/></svg>);
+    case "chart": // stats bars
+      return (<svg viewBox="0 0 24 24" style={s}><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" {...common}/></svg>);
     case "crown":
       return (<svg viewBox="0 0 24 24" style={s}><path d="M4 8l3.5 3L12 5l4.5 6L20 8l-1.5 9h-13z" {...common}/><path d="M5.5 17h13" {...common}/></svg>);
     case "medal":
@@ -1362,7 +1364,8 @@ const PlayersContext = createContext(DEMO_PLAYERS);
 const usePlayers = () => useContext(PlayersContext);
 
 const BUDGET = 888;
-const SQUAD_RULES = { GK:2, DF:5, MF:5, FW:3 };
+const SQUAD_RULES = { GK:2, DF:5, MF:6, FW:3 };
+const SQUAD_SIZE = Object.values(SQUAD_RULES).reduce((a,b)=>a+b,0); // 16
 const POS_LABEL = { GK:"GK", DF:"DEF", MF:"MID", FW:"FWD" };
 const FLAG = {
   FRA:"🇫🇷",NOR:"🇳🇴",BRA:"🇧🇷",ARG:"🇦🇷",ENG:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",ESP:"🇪🇸",GER:"🇩🇪",
@@ -1371,7 +1374,7 @@ const FLAG = {
   ALG:"🇩🇿",AUS:"🇦🇺",AUT:"🇦🇹",BIH:"🇧🇦",CAN:"🇨🇦",CIV:"🇨🇮",COD:"🇨🇩",CPV:"🇨🇻",
   CUW:"🇨🇼",CZE:"🇨🇿",EGY:"🇪🇬",GHA:"🇬🇭",HAI:"🇭🇹",IRN:"🇮🇷",IRQ:"🇮🇶",JOR:"🇯🇴",
   JPN:"🇯🇵",KSA:"🇸🇦",MEX:"🇲🇽",NZL:"🇳🇿",PAN:"🇵🇦",PAR:"🇵🇾",QAT:"🇶🇦",RSA:"🇿🇦",
-  SCO:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",SEN:"🇸🇳",TUN:"🇹🇳",USA:"🇺🇸",UZB:"🇺🇿",
+  SCO:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",SEN:"🇸🇳",TUN:"🇹🇳",USA:"🇺🇸",UZB:"🇺🇿",NGA:"🇳🇬",DEN:"🇩🇰",POL:"🇵🇱",
 };
 const FORMATIONS = {
   "4-3-3":["FW","FW","FW","MF","MF","MF","DF","DF","DF","DF","GK"],
@@ -1623,7 +1626,7 @@ export default function App(){
       if(vice===p.id)setVice(null);
       setSquad(c=>c.filter(x=>x!==p.id));
     }else{
-      if(squad.length>=15||counts[p.p]>=SQUAD_RULES[p.p]||budget<p.pr)return;
+      if(squad.length>=SQUAD_SIZE||counts[p.p]>=SQUAD_RULES[p.p]||budget<p.pr)return;
       setSquad(c=>[...c,p.id]);
     }
   }
@@ -1643,6 +1646,7 @@ export default function App(){
         {tab==="ranks" && <Ranks setTab={setTab}/>}
         {tab==="token" && <Token/>}
         {tab==="quests" && <Quests/>}
+        {tab==="stats" && <Stats squad={squad}/>}
         {tab==="about" && <About setTab={setTab}/>}
       </main>
       <TabBar tab={tab} setTab={setTab} squadCount={squad.length}/>
@@ -1719,7 +1723,7 @@ function TopBar({authUser,onLogin}){
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <div style={S.poolChip}>
           <span style={S.poolDot}/>
-          <span style={{fontWeight:800,fontSize:13}}>◎312.4</span>
+          <span style={{fontWeight:800,fontSize:13}}>◎312.4 SOL</span>
         </div>
         <button onClick={onLogin} style={S.loginChip}>
           {authUser
@@ -1747,7 +1751,11 @@ function LoginSheet({authUser,onClose}){
   }
   async function doWallet(){
     setErr(""); setBusy("wallet");
-    try{ const a=await connectWallet(); setWallet(a); }
+    try{
+      const a=await connectWallet();
+      if(a) setWallet(a);
+      else setErr(""); // mobile: navigating to Phantom's in-app browser…
+    }
     catch(e){ setErr(e?.message||"Wallet connection failed"); }
     finally{ setBusy(null); }
   }
@@ -1811,6 +1819,18 @@ function Build({squad,counts,spent,budget,toggle,captain,setCaptain,vice,setVice
   const [search,setSearch]=useState("");
   const [view,setView]=useState("market");
   const [sortBy,setSortBy]=useState("pts");
+  // measure budget header so the filter bar can stick right below it
+  const budgetRef=useRef(null);
+  const [stickTop,setStickTop]=useState(56);
+  useEffect(()=>{
+    function measure(){
+      const h=budgetRef.current?.offsetHeight||0;
+      setStickTop(56+h); // 56 = top bar height
+    }
+    measure();
+    window.addEventListener("resize",measure);
+    return ()=>window.removeEventListener("resize",measure);
+  },[squad.length,formationLock]);
 
   // cheapest available price per position (for reserve calculation)
   const MIN_PRICE=useMemo(()=>{
@@ -1832,7 +1852,7 @@ function Build({squad,counts,spent,budget,toggle,captain,setCaptain,vice,setVice
   // can this player be added without making the squad uncompletable?
   function affordable(p){
     if(squad.includes(p.id))return true;
-    if(squad.length>=15)return false;
+    if(squad.length>=SQUAD_SIZE)return false;
     if(counts[p.p]>=SQUAD_RULES[p.p])return false;
     return (budget - p.pr) >= reserveForOthers(p.p);
   }
@@ -1849,7 +1869,7 @@ function Build({squad,counts,spent,budget,toggle,captain,setCaptain,vice,setVice
 
   return (
     <div>
-      <div style={S.budgetHeader}>
+      <div style={S.budgetHeader} ref={budgetRef}>
         <LockBanner compact status={formationLock}/>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
           <div>
@@ -1863,7 +1883,7 @@ function Build({squad,counts,spent,budget,toggle,captain,setCaptain,vice,setVice
           <div style={{textAlign:"right"}}>
             <div style={S.miniLabel}>SQUAD</div>
             <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:30,lineHeight:1}}>
-              {squad.length}<span style={{fontSize:14,color:C.mute}}>/15</span>
+              {squad.length}<span style={{fontSize:14,color:C.mute}}>/{SQUAD_SIZE}</span>
             </div>
           </div>
         </div>
@@ -1890,23 +1910,25 @@ function Build({squad,counts,spent,budget,toggle,captain,setCaptain,vice,setVice
 
       {view==="market" ? (
         <>
-          <div style={{padding:"0 16px"}}>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search players…" style={S.search}/>
-          </div>
-          <div style={{padding:"10px 16px 6px"}}>
-            <div style={S.posGrid}>
-              {["ALL","GK","DF","MF","FW"].map(f=>(
-                <button key={f} onClick={()=>setPosF(f)} style={{...S.posBtn,...(posF===f?S.posBtnOn:{})}}>
-                  {f==="ALL"?"ALL":POS_LABEL[f]}
-                </button>
-              ))}
+          <div style={{...S.marketStick,top:stickTop}}>
+            <div style={{padding:"0 16px"}}>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search players…" style={S.search}/>
             </div>
-            <div style={{display:"flex",gap:6,marginTop:8,alignItems:"center"}}>
-              <span style={{fontSize:11,color:C.mute,fontWeight:700,letterSpacing:.5}}>SORT</span>
-              {[["pts","FORM"],["pr","PRICE"],["own","PICKED"]].map(([k,l])=>(
-                <button key={k} onClick={()=>setSortBy(k)}
-                  style={{...S.sortBtn,...(sortBy===k?S.sortBtnOn:{})}}>↕ {l}</button>
-              ))}
+            <div style={{padding:"10px 16px 8px"}}>
+              <div style={S.posGrid}>
+                {["ALL","GK","DF","MF","FW"].map(f=>(
+                  <button key={f} onClick={()=>setPosF(f)} style={{...S.posBtn,...(posF===f?S.posBtnOn:{})}}>
+                    {f==="ALL"?"ALL":POS_LABEL[f]}
+                  </button>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:6,marginTop:8,alignItems:"center"}}>
+                <span style={{fontSize:11,color:C.mute,fontWeight:700,letterSpacing:.5}}>SORT</span>
+                {[["pts","FORM"],["pr","PRICE"],["own","PICKED"]].map(([k,l])=>(
+                  <button key={k} onClick={()=>setSortBy(k)}
+                    style={{...S.sortBtn,...(sortBy===k?S.sortBtnOn:{})}}>↕ {l}</button>
+                ))}
+              </div>
             </div>
           </div>
           <div style={{padding:"4px 16px 20px"}}>
@@ -1985,7 +2007,7 @@ function MySquad({squad,captain,setCaptain,vice,setVice,toggle,avgPts,spent,setT
       <div style={{display:"flex",gap:10,marginBottom:14}}>
         <div style={S.statCard}><div style={S.miniLabel}>SPENT</div><div style={S.statBig}>◎{spent}</div></div>
         <div style={S.statCard}><div style={S.miniLabel}>AVG FORM</div><div style={{...S.statBig,color:C.orange}}>{avgPts}</div></div>
-        <div style={S.statCard}><div style={S.miniLabel}>PLAYERS</div><div style={S.statBig}>{squad.length}/15</div></div>
+        <div style={S.statCard}><div style={S.miniLabel}>PLAYERS</div><div style={S.statBig}>{squad.length}/{SQUAD_SIZE}</div></div>
       </div>
       {["GK","DF","MF","FW"].map(pos=>{
         const group=squad.map(id=>DEMO_PLAYERS.find(p=>p.id===id)).filter(p=>p&&p.p===pos);
@@ -2182,6 +2204,7 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,setShar
   const DEMO_PLAYERS=usePlayers();
   const [showKit,setShowKit]=useState(false);
   const [picker,setPicker]=useState(null); // player id being assigned C/V
+  const [projInfo,setProjInfo]=useState(false); // PROJ explainer tooltip
   const starterPlayers=useMemo(()=>starters.map(id=>DEMO_PLAYERS.find(p=>p.id===id)).filter(Boolean),[starters,DEMO_PLAYERS]);
   const benchPlayers=useMemo(()=>benchIds.map(id=>DEMO_PLAYERS.find(p=>p.id===id)).filter(Boolean),[benchIds,DEMO_PLAYERS]);
   const rows=useMemo(()=>{
@@ -2259,9 +2282,29 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,setShar
         {Object.keys(FORMATIONS).map(f=>(
           <button key={f} onClick={()=>setFormation(f)} style={{...S.chip,...(formation===f?S.chipOn:{})}}>{f}</button>
         ))}
-        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,paddingRight:4,flexShrink:0}}>
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,paddingRight:4,flexShrink:0,position:"relative"}}>
           <span style={{fontSize:11,color:C.mute,fontWeight:600}}>PROJ</span>
+          <button onClick={()=>setProjInfo(v=>!v)} aria-label="What is PROJ?"
+            style={{display:"inline-grid",placeItems:"center",width:16,height:16,borderRadius:"50%",
+              border:`1.5px solid ${C.mute}`,background:"transparent",color:C.mute,cursor:"pointer",
+              fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:10,lineHeight:1,padding:0}}>i</button>
           <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:18,color:C.orange}}>{total}</span>
+          {projInfo && (
+            <>
+              <div onClick={()=>setProjInfo(false)} style={{position:"fixed",inset:0,zIndex:40}}/>
+              <div style={S.projPop}>
+                <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:13,color:C.ink,marginBottom:5}}>
+                  Projected points
+                </div>
+                <p style={{margin:0,fontSize:12,lineHeight:1.5,color:C.inkSoft}}>
+                  The combined form rating of your 11 starters — an estimate of how many points
+                  this lineup could score. It updates as you swap players or change formation.
+                  Captain and Vice multipliers are applied on matchday.
+                </p>
+                <div style={S.projPopArrow}/>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -2506,26 +2549,62 @@ function PlayerCard({p,cap,vice,jersey, selected, onCVCtrl}){
 }
 
 const LB=[
-  {rank:1,prev:2,name:"CRYPTO WIZARD",pts:847,flag:"🇩🇪",prize:"◎46.1",tier:"elite"},
-  {rank:2,prev:1,name:"DEGEN FC",pts:831,flag:"🇦🇷",prize:"◎28.3",tier:"elite"},
-  {rank:3,prev:4,name:"SOL UNITED",pts:818,flag:"🇧🇷",prize:"◎18.9",tier:"elite"},
-  {rank:4,prev:3,name:"MOON SHOTS",pts:804,flag:"🇫🇷",prize:"◎13.8",tier:"gold"},
-  {rank:5,prev:7,name:"ALPHA PICKS",pts:796,flag:"🇪🇸",prize:"◎13.8",tier:"gold"},
-  {rank:6,prev:5,name:"PUMP IT FC",pts:783,flag:"🇳🇱",prize:"◎13.8",tier:"gold"},
-  {rank:7,prev:9,name:"DEFI DREAMS",pts:771,flag:"🇵🇹",prize:"◎13.8",tier:"gold"},
-  {rank:8,prev:8,name:"GAS LEGENDS",pts:764,flag:"🇲🇦",prize:"◎13.8",tier:"gold"},
-  {rank:9,prev:12,name:"BULL MARKET",pts:758,flag:"🇩🇪",prize:"◎13.8",tier:"gold"},
-  {rank:10,prev:6,name:"SATOSHI SC",pts:749,flag:"🇧🇷",prize:"◎13.8",tier:"gold"},
-  {rank:11,prev:14,name:"LEDGER FC",pts:741,flag:"🇦🇷",prize:"◎4.3",tier:"silver"},
-  {rank:12,prev:10,name:"NFT STRIKERS",pts:736,flag:"🇫🇷",prize:"◎4.3",tier:"silver"},
+  {rank:1,prev:2,name:"CRYPTO WIZARD",pts:847,flag:"🇩🇪",tier:"elite"},
+  {rank:2,prev:1,name:"DEGEN FC",pts:831,flag:"🇦🇷",tier:"elite"},
+  {rank:3,prev:4,name:"SOL UNITED",pts:818,flag:"🇧🇷",tier:"elite"},
+  {rank:4,prev:3,name:"MOON SHOTS",pts:804,flag:"🇫🇷",tier:"gold"},
+  {rank:5,prev:7,name:"ALPHA PICKS",pts:796,flag:"🇪🇸",tier:"gold"},
+  {rank:6,prev:5,name:"PUMP IT FC",pts:783,flag:"🇳🇱",tier:"gold"},
+  {rank:7,prev:9,name:"DEFI DREAMS",pts:771,flag:"🇵🇹",tier:"gold"},
+  {rank:8,prev:8,name:"GAS LEGENDS",pts:764,flag:"🇲🇦",tier:"gold"},
+  {rank:9,prev:12,name:"BULL MARKET",pts:758,flag:"🇩🇪",tier:"gold"},
+  {rank:10,prev:6,name:"SATOSHI SC",pts:749,flag:"🇧🇷",tier:"gold"},
+  {rank:11,prev:14,name:"LEDGER FC",pts:741,flag:"🇦🇷",tier:"silver"},
+  {rank:12,prev:10,name:"NFT STRIKERS",pts:736,flag:"🇫🇷",tier:"silver"},
 ];
 const TIERS={elite:{c:"#ff5b1e",i:"crown",l:"ELITE"},gold:{c:"#e6a100",i:"trophy",l:"GOLD"},silver:{c:"#8c8378",i:"medal",l:"SILVER"}};
+
+// ── Prize distribution (Option B — flatter, rewards depth). Top-100 share of the pool.
+// Each entry: max rank covered + share-per-place (already normalized to sum 100%).
+const PRIZE_CURVE=[
+  {upTo:1,  pct:9.48},
+  {upTo:2,  pct:6.64},
+  {upTo:3,  pct:4.74},
+  {upTo:10, pct:2.84},
+  {upTo:30, pct:1.14},
+  {upTo:100,pct:0.52},
+];
+function prizePctForRank(rank){
+  for(const b of PRIZE_CURVE){ if(rank<=b.upTo) return b.pct; }
+  return 0;
+}
+// potential winnings in SOL for a given rank, given the live pool total
+function potentialWin(rank,pool){
+  if(rank>100||!pool) return 0;
+  return +(pool*prizePctForRank(rank)/100).toFixed(2);
+}
+
+// Demo weekly leaderboard (this matchday) — used when backend has no weekly rows yet
+const LB_WEEK=[
+  {rank:1,prev:3,name:"GAS LEGENDS",pts:96,flag:"🇲🇦",tier:"elite"},
+  {rank:2,prev:1,name:"DEGEN FC",pts:92,flag:"🇦🇷",tier:"elite"},
+  {rank:3,prev:8,name:"MOON SHOTS",pts:89,flag:"🇫🇷",tier:"elite"},
+  {rank:4,prev:2,name:"CRYPTO WIZARD",pts:87,flag:"🇩🇪",tier:"gold"},
+  {rank:5,prev:11,name:"LEDGER FC",pts:84,flag:"🇦🇷",tier:"gold"},
+  {rank:6,prev:4,name:"SOL UNITED",pts:82,flag:"🇧🇷",tier:"gold"},
+  {rank:7,prev:5,name:"ALPHA PICKS",pts:80,flag:"🇪🇸",tier:"gold"},
+  {rank:8,prev:9,name:"DEFI DREAMS",pts:78,flag:"🇵🇹",tier:"gold"},
+];
 
 function Ranks({setTab}){
   // Live leaderboard when Supabase is configured; otherwise the demo LB.
   // Live rows (x_handle, total_points, rank) are mapped into the demo shape
   // so the existing card render works unchanged.
   const [board,setBoard]=useState(LB);
+  const [weekBoard,setWeekBoard]=useState(LB_WEEK);
+  const [scope,setScope]=useState("overall"); // overall | week
+  const [pool,setPool]=useState(312.4);        // live prize pool (SOL)
+  const [showTable,setShowTable]=useState(false); // top-100 how-it-works modal
   useEffect(()=>{
     let alive=true;
     getLeaderboard().then(rowsLive=>{
@@ -2537,12 +2616,12 @@ function Ranks({setTab}){
         flag:"🌍",
         tier: (r.rank??i+1)<=10?"elite":(r.rank??i+1)<=50?"gold":"silver",
         pts:r.total_points??0,
-        prize:"",
       }));
       setBoard(mapped);
     }).catch(e=>console.warn("getLeaderboard failed, using demo:",e?.message||e));
     return ()=>{alive=false;};
   },[]);
+  const shown = scope==="overall"?board:weekBoard;
   return (
     <div style={{paddingBottom:20}}>
       <div style={{padding:"14px 16px"}}>
@@ -2582,16 +2661,24 @@ function Ranks({setTab}){
         <div style={S.poolBanner}>
           <div>
             <div style={{fontSize:10,color:C.mute,letterSpacing:1.5,fontWeight:700}}>LIVE PRIZE POOL</div>
-            <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:26,color:C.ink}}>◎312.4</div>
+            <div style={{display:"flex",alignItems:"baseline",gap:6}}>
+              <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:26,color:C.ink}}>◎{pool}</div>
+              <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:C.mute,letterSpacing:.5}}>SOL</div>
+            </div>
           </div>
-          <div style={{fontSize:11,color:C.orangeDeep,fontWeight:700,background:C.orangeSoft,
-            padding:"6px 12px",borderRadius:20}}>TOP 100 PAID</div>
+          <button onClick={()=>setShowTable(true)} style={S.howItWorksBtn}>
+            How it works <span style={{display:"inline-flex"}}><Icon name="chevron" size={16}/></span>
+          </button>
         </div>
       </div>
 
       <div style={{padding:"0 16px"}}>
-        <div style={S.sectionLabel}>GLOBAL TOP MANAGERS</div>
-        {board.map(r=>{
+        <div style={S.scopeToggle}>
+          <button onClick={()=>setScope("overall")} style={{...S.scopeBtn,...(scope==="overall"?S.scopeBtnOn:{})}}>Overall</button>
+          <button onClick={()=>setScope("week")} style={{...S.scopeBtn,...(scope==="week"?S.scopeBtnOn:{})}}>This week</button>
+        </div>
+        <div style={S.sectionLabel}>{scope==="overall"?"GLOBAL TOP MANAGERS":"THIS MATCHDAY'S BEST"}</div>
+        {shown.map(r=>{
           const t=TIERS[r.tier]; const moved=r.prev-r.rank;
           return (
             <div key={r.rank} style={{display:"flex",alignItems:"center",gap:11,padding:"12px",
@@ -2617,7 +2704,9 @@ function Ranks({setTab}){
               </div>
               <div style={{textAlign:"right",flexShrink:0}}>
                 <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:15,color:C.ink}}>{r.pts}</div>
-                <div style={{fontSize:11,fontWeight:700,color:C.orangeDeep}}>{r.prize}</div>
+                {scope==="overall"
+                  ? <div style={{fontSize:11,fontWeight:700,color:C.orangeDeep}}>◎{potentialWin(r.rank,pool)} SOL</div>
+                  : <div style={{fontSize:10,fontWeight:700,color:C.mute,letterSpacing:.3}}>this week</div>}
               </div>
             </div>
           );
@@ -2638,11 +2727,57 @@ function Ranks({setTab}){
           </div>
         </div>
       </div>
+
+      {showTable && <PrizeTableModal pool={pool} board={board} onClose={()=>setShowTable(false)}/>}
     </div>
   );
 }
 
-// ─── SHARE / FLEX CARD MODAL ───────────────────────────────────────────────
+// ─── PRIZE TABLE MODAL (How it works → full top-100 with potential winnings) ──
+function PrizeTableModal({pool,board,onClose}){
+  // Build a full 1..100 table. Use real names where we have them (board), else a placeholder.
+  const nameByRank={}; board.forEach(r=>{nameByRank[r.rank]=r.name;});
+  const rows=Array.from({length:100},(_,i)=>{
+    const rank=i+1;
+    return { rank, name:nameByRank[rank]||`Rank ${rank}`, pct:prizePctForRank(rank), win:potentialWin(rank,pool) };
+  });
+  return (
+    <div style={S.modalBackdrop} onClick={onClose}>
+      <div style={{...S.modalSheet,maxHeight:"86vh",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+          <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:20,color:C.ink}}>Prize distribution</div>
+          <button onClick={onClose} style={S.iconBtn}><Icon name="x" size={18}/></button>
+        </div>
+        <p style={{margin:"0 0 12px",fontSize:12.5,color:C.mute,lineHeight:1.5}}>
+          The top 100 share the live pool of <b style={{color:C.ink}}>◎{pool} SOL</b>. Each position earns a fixed
+          share of the pool — payouts grow as the pool grows. Figures update live.
+        </p>
+        <div style={{display:"grid",gridTemplateColumns:"36px 1fr 56px 78px",gap:4,padding:"8px 10px",
+          borderBottom:`1px solid ${C.line}`,fontSize:10,fontWeight:800,color:C.mute,letterSpacing:.5,
+          fontFamily:"'Archivo Narrow',sans-serif",textAlign:"right"}}>
+          <span style={{textAlign:"left"}}>#</span><span style={{textAlign:"left"}}>MANAGER</span><span>SHARE</span><span>POTENTIAL</span>
+        </div>
+        <div style={{overflowY:"auto",flex:1,WebkitOverflowScrolling:"touch"}}>
+          {rows.map(r=>(
+            <div key={r.rank} style={{display:"grid",gridTemplateColumns:"36px 1fr 56px 78px",gap:4,
+              padding:"9px 10px",alignItems:"center",borderBottom:`1px solid ${C.line}`,textAlign:"right"}}>
+              <span style={{textAlign:"left",fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:13,
+                color:r.rank<=3?C.orange:C.mute}}>{r.rank}</span>
+              <span style={{textAlign:"left",fontFamily:"'Archivo',sans-serif",fontWeight:700,fontSize:12.5,
+                color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</span>
+              <span style={{fontSize:11.5,color:C.mute,fontWeight:700}}>{r.pct}%</span>
+              <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:13,color:C.orangeDeep}}>◎{r.win}</span>
+            </div>
+          ))}
+        </div>
+        <p style={{margin:"10px 0 0",fontSize:10.5,color:C.mute,lineHeight:1.5,textAlign:"center"}}>
+          Potential winnings are estimates based on the current pool and your rank right now. Final payouts
+          are settled on-chain at the end of the season.
+        </p>
+      </div>
+    </div>
+  );
+}
 function ShareModal({squad,captain,vice,teamName,jersey,onClose}){
   const DEMO_PLAYERS=usePlayers();
   const [formation,setFormation]=useState("4-3-3");
@@ -2856,27 +2991,27 @@ function Quests(){
   const QUESTS=[
     {id:1,cat:"REACH",title:"Spotlight Stream",
       desc:"Run a sports/trading livestream with the $FANTABALL ticker banner on screen the whole time.",
-      reward:"◎1",timeLeft:"5d left",entrants:14,
+      reward:"◎1 SOL",timeLeft:"5d left",entrants:14,
       deliver:"Public VOD ≥30 min · ticker readable throughout · avg viewers ≥ threshold",status:"live"},
     {id:2,cat:"REACH",title:"Viral Post",
       desc:"Post about Fantaball on X and pass 20,000 real views.",
-      reward:"◎1",timeLeft:"3d left",entrants:63,
+      reward:"◎1 SOL",timeLeft:"3d left",entrants:63,
       deliver:"Post link + analytics screenshot showing ≥20k views + $FANTABALL tag",status:"live"},
     {id:3,cat:"REACH",title:"TikTok Drop",
       desc:"Make a TikTok explaining the project with the ticker visible on screen.",
-      reward:"◎1",timeLeft:"4d left",entrants:38,
+      reward:"◎1 SOL",timeLeft:"4d left",entrants:38,
       deliver:"TikTok link + view count ≥ threshold + ticker visible",status:"live"},
     {id:4,cat:"REACH",title:"Thread of the Week",
       desc:"Write an explainer thread on the project or its mechanics that passes the engagement bar.",
-      reward:"◎0.5",timeLeft:"2d left",entrants:51,
+      reward:"◎0.5 SOL",timeLeft:"2d left",entrants:51,
       deliver:"Thread link + impressions screenshot ≥ threshold",status:"live"},
     {id:5,cat:"LADDER",title:"Bracket Oracle · R16",
       desc:"Predict the most correct results of the Round of 16. One winner takes it.",
-      reward:"◎0.5",timeLeft:"starts GW5",entrants:0,
+      reward:"◎0.5 SOL",timeLeft:"starts GW5",entrants:0,
       deliver:"Completed bracket before kickoff + correct count",status:"upcoming"},
     {id:6,cat:"LADDER",title:"Man of the Matchday",
       desc:"Highest single-matchday score across all managers. Resets every matchday.",
-      reward:"◎0.3",timeLeft:"6h left",entrants:312,
+      reward:"◎0.3 SOL",timeLeft:"6h left",entrants:312,
       deliver:"Score screenshot + public profile link",status:"live"},
   ];
   const cats=["ALL","REACH","LADDER"];
@@ -2912,7 +3047,7 @@ function Quests(){
               </div>
               <div>
                 <div style={{fontSize:9,color:"#ffffff77",letterSpacing:1,fontWeight:700}}>SOL ON OFFER</div>
-                <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:20,color:C.orange}}>◎{totalFunding}</div>
+                <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:20,color:C.orange}}>◎{totalFunding} SOL</div>
               </div>
             </div>
           </div>
@@ -2998,11 +3133,22 @@ function Quests(){
 }
 
 function Token(){
+  const [holdInfo,setHoldInfo]=useState(false);
+  // ── Transparency config — fill with the REAL dedicated fee/pool wallet + movements.
+  // Until POOL_WALLET is set to a real address, the Solscan link is hidden and the
+  // ledger shows an honest "not yet" state instead of fabricated transactions.
+  const POOL_WALLET=""; // e.g. "Fp9L...z7Qx" — the dedicated prize-pool wallet (paste real address)
+  const POOL_LEDGER=[
+    // Fill with real, verifiable movements once they happen. Each links to a tx on Solscan.
+    // { type:"claim", amount:2.4, date:"2026-06-12", tx:"5xQ...abc" },
+    // { type:"lock",  amount:50,  date:"2026-06-13", tx:"9zR...def" },
+  ];
+  const solscanAddr = POOL_WALLET ? `https://solscan.io/account/${POOL_WALLET}` : null;
   const stats=[
     {l:"MARKET CAP",v:"$284K",s:"fully diluted"},
     {l:"HOLDERS",v:"1,847",s:"+23 today"},
     {l:"VOLUME 24H",v:"$41.2K",s:"Pump.fun"},
-    {l:"FEES TO POOL",v:"◎312",s:"60% of fees"},
+    {l:"FEES TO POOL",v:"◎312 SOL",s:"60% of fees"},
   ];
   const feeSplit=[
     {pct:60,label:"PRIZE POOL",sub:"top 100 in SOL",color:C.orange},
@@ -3016,22 +3162,80 @@ function Token(){
           background:C.orange,opacity:.18}}/>
         <div style={{position:"relative",zIndex:1}}>
           <div style={{fontSize:11,color:"#ffffff99",letterSpacing:2.5,fontWeight:700}}>LIVE PRIZE POOL</div>
-          <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:54,color:"#fff",lineHeight:1,marginTop:4}}>◎312.4</div>
+          <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:54,color:"#fff",lineHeight:1,marginTop:4}}>◎312.4 <span style={{fontSize:24}}>SOL</span></div>
           <div style={{fontSize:13,color:"#ffffffcc",marginTop:8,lineHeight:1.5}}>Grows with every trade · paid in SOL to top 100</div>
           <div style={{height:6,background:"#ffffff22",borderRadius:6,overflow:"hidden",marginTop:14}}>
             <div style={{height:"100%",width:"71%",background:C.orange,borderRadius:6}}/>
           </div>
           <div style={{fontSize:11,color:"#ffffff99",marginTop:5}}>71% toward GW3 target</div>
+          {solscanAddr ? (
+            <a href={solscanAddr} target="_blank" rel="noopener noreferrer" style={S.solscanLink}>
+              <Icon name="chain" size={14}/> Track the fee wallet on Solscan
+              <Icon name="arrow" size={13}/>
+            </a>
+          ) : (
+            <div style={{...S.solscanLink,opacity:.6,cursor:"default"}}>
+              <Icon name="chain" size={14}/> Solscan link goes live at token launch
+            </div>
+          )}
         </div>
       </div>
 
-      <div style={S.accessCard}>
-        <div style={{width:44,height:44,borderRadius:13,background:C.orangeSoft,display:"grid",placeItems:"center",flexShrink:0,color:C.orange}}><Icon name="bolt" size={22}/></div>
-        <div style={{flex:1}}>
-          <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:15,color:C.ink}}>Hold $25 in $FANTABALL</div>
-          <div style={{fontSize:12,color:C.mute,marginTop:2,lineHeight:1.4}}>One-time hold to play free. Token = access pass.</div>
+      <div style={{marginTop:14}}>
+        <div style={S.accessCard}>
+          <div style={{width:44,height:44,borderRadius:13,background:C.orangeSoft,display:"grid",placeItems:"center",flexShrink:0,color:C.orange}}><Icon name="bolt" size={22}/></div>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:15,color:C.ink}}>Hold $25 in $FANTABALL</div>
+            <div style={{fontSize:12,color:C.mute,marginTop:2,lineHeight:1.4}}>Your access pass to score points each gameweek.</div>
+          </div>
+          <span style={{fontSize:11,fontWeight:800,color:"#fff",background:C.orange,padding:"5px 10px",borderRadius:8,flexShrink:0}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}>ACTIVE <Icon name="check" size={13}/></span></span>
         </div>
-        <span style={{fontSize:11,fontWeight:800,color:"#fff",background:C.orange,padding:"5px 10px",borderRadius:8,flexShrink:0}}><span style={{display:"inline-flex",alignItems:"center",gap:4}}>ACTIVE <Icon name="check" size={13}/></span></span>
+        <button onClick={()=>setHoldInfo(v=>!v)} style={S.howItWorksWide}>
+          How it works
+          <span style={{display:"inline-flex",transform:holdInfo?"rotate(180deg)":"none",transition:"transform .2s"}}>
+            <Icon name="chevron" size={16}/>
+          </span>
+        </button>
+        {holdInfo && (
+          <div style={S.holdExplain}>
+            <p style={{margin:"0 0 12px",fontSize:13,lineHeight:1.55,color:C.inkSoft}}>
+              When you join the competition, buy <b style={{color:C.ink}}>$25 worth</b> of $FANTABALL. The system
+              records that purchase and locks the <b style={{color:C.ink}}>number of tokens you received</b> as your
+              personal eligibility floor. You never have to add money again.
+            </p>
+            <div style={S.holdFormula}>
+              eligible at a snapshot if&nbsp;&nbsp;tokens ≥ entry amount&nbsp;&nbsp;<b>OR</b>&nbsp;&nbsp;value ≥ $25
+            </div>
+            <p style={{margin:"12px 0 6px",fontSize:13,fontWeight:800,color:C.ink,fontFamily:"'Archivo',sans-serif"}}>What this means</p>
+            <ul style={{margin:0,paddingLeft:18,fontSize:12.5,lineHeight:1.6,color:C.inkSoft}}>
+              <li><b>If the price falls</b> after you join: just keep your entry tokens. You stay eligible even if
+                they're now worth less than $25 — a market dip never knocks you out, and you never need to buy more.</li>
+              <li><b>If the price rises</b>: you can sell and take profit, as long as you always keep at least
+                <b> $25 of value</b> in your wallet. Since each token is worth more, $25 is now <b>fewer tokens</b>
+                than you started with.</li>
+            </ul>
+            <p style={{margin:"12px 0 6px",fontSize:13,fontWeight:800,color:C.ink,fontFamily:"'Archivo',sans-serif"}}>Example</p>
+            <ul style={{margin:0,paddingLeft:18,fontSize:12.5,lineHeight:1.6,color:C.inkSoft}}>
+              <li>You join at a <b>$20K</b> market cap: $25 buys you <b>1,000,000</b> tokens — that's your floor.</li>
+              <li>The cap climbs to <b>$250K</b>. Now $25 is only ~<b>80,000</b> tokens. You may sell up to
+                <b> 920,000</b> tokens and still be eligible, because ~80,000 tokens still equal $25.</li>
+              <li>Instead the cap <b>drops to $10K</b>? Your 1,000,000 entry tokens keep you eligible — no action needed.</li>
+            </ul>
+            <div style={S.holdSnap}>
+              <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:12.5,color:C.ink,marginBottom:4}}>
+                When it's checked
+              </div>
+              <p style={{margin:0,fontSize:12.5,lineHeight:1.55,color:C.inkSoft}}>
+                Each gameweek we take <b style={{color:C.ink}}>3 random snapshots</b> of your wallet. You must be
+                eligible at <b style={{color:C.ink}}>all 3</b> for your points to count toward the overall standings.
+                <b style={{color:C.ink}}> Miss even one and you score no overall points that week.</b>
+              </p>
+            </div>
+            <p style={{margin:"12px 0 0",fontSize:11,color:C.mute,lineHeight:1.5}}>
+              Side-quest bounties on pump.fun GO are separate and don't require the hold.
+            </p>
+          </div>
+        )}
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:14}}>
@@ -3042,6 +3246,55 @@ function Token(){
             <div style={{fontSize:11,color:C.mute,marginTop:2}}>{s}</div>
           </div>
         ))}
+      </div>
+
+      {/* POOL LEDGER — claims & locks (transparency before trustless smart contract) */}
+      <div style={{...S.tokenStat,marginTop:14,padding:"16px 18px"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+          <div style={S.miniLabel}>POOL LEDGER · CLAIMS & LOCKS</div>
+          {solscanAddr && (
+            <a href={solscanAddr} target="_blank" rel="noopener noreferrer"
+              style={{fontSize:11,fontWeight:800,color:C.orangeDeep,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:4}}>
+              Solscan <Icon name="arrow" size={12}/>
+            </a>
+          )}
+        </div>
+        <p style={{margin:"0 0 12px",fontSize:12,color:C.mute,lineHeight:1.5}}>
+          Every claim of creator fees and every SOL lock into the prize-pool wallet is recorded here and
+          verifiable on-chain — full transparency until the trustless smart contract goes live.
+        </p>
+        {POOL_LEDGER.length===0 ? (
+          <div style={{textAlign:"center",padding:"22px 16px",background:C.paper,borderRadius:11,
+            border:`1px dashed ${C.line}`,fontSize:12.5,color:C.mute,lineHeight:1.5}}>
+            No movements yet. Claims and locks will appear here once the token is live —
+            each linked to its on-chain transaction.
+          </div>
+        ) : (
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {POOL_LEDGER.map((m,i)=>{
+              const isLock=m.type==="lock";
+              return (
+                <a key={i} href={m.tx?`https://solscan.io/tx/${m.tx}`:undefined}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{display:"flex",alignItems:"center",gap:11,padding:"11px 12px",borderRadius:11,
+                    background:C.paper,border:`1px solid ${C.line}`,textDecoration:"none"}}>
+                  <div style={{width:34,height:34,borderRadius:10,flexShrink:0,display:"grid",placeItems:"center",
+                    background:isLock?C.orangeSoft:"#eef3ee",color:isLock?C.orangeDeep:"#2e8b57"}}>
+                    <Icon name={isLock?"lock":"cash"} size={17}/>
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:13.5,color:C.ink}}>
+                      {isLock?"Locked for the Final":"Fees claimed to pool"}
+                    </div>
+                    <div style={{fontSize:11,color:C.mute,marginTop:1}}>{m.date}{m.tx?" · view tx":""}</div>
+                  </div>
+                  <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:15,
+                    color:isLock?C.orangeDeep:"#2e8b57",flexShrink:0}}>◎{m.amount} SOL</div>
+                </a>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* FEE DISTRIBUTION */}
@@ -3101,10 +3354,10 @@ function About({setTab}){
 
   const faqs=[
     ["Do I need to know football?","Not deeply. Pick players you believe will perform, manage a budget, set a captain. The leaderboard does the rest. Many top managers are data-driven, not lifelong fans."],
-    ["Is it free to play?","Yes. The only requirement is holding $25 in $FANTABALL as an access pass. No entry fee, no pay-to-win — the prize pool comes entirely from token trading fees."],
+    ["Is it free to play?","Yes — no entry fee and no pay-to-win. The only requirement is holding $FANTABALL: buy $25 worth when you join, and stay eligible each gameweek (keep your entry tokens, or at least $25 of value). The prize pool comes entirely from token trading fees. Tap \"How it works\" on the Pool tab for the full mechanic."],
     ["How do I win SOL?","The top 100 managers on the final leaderboard split the prize pool, paid in SOL. Even 100th place gets paid. A strong podium, but the curve rewards depth."],
     ["What makes points?","Only objective, API-verified events: goals, assists, clean sheets, minutes played, cards. No subjective ratings. Anyone can rebuild any score event by event."],
-    ["Can I change my team?","Your 15-man squad is set with a budget of 888 credits. You pick 11 starters each matchday and can make transfers between tournament stages."],
+    ["Can I change my team?","Your 16-man squad is set with a budget of 888 credits. You pick 11 starters each matchday and can make transfers between tournament stages."],
     ["What happens after the World Cup?","The platform continues. The World Cup is our launch tournament — Premier League is the next chapter, then more leagues. Same token, same platform."],
     ["Can I earn without being a top player?","Yes. 30% of fees fund bounties on pump.fun GO — stream, post, or predict to earn SOL. Each bounty pays one winner (pump.fun decides), but every entry helps grow the project."],
   ];
@@ -3135,7 +3388,7 @@ function About({setTab}){
 
       {/* STAT STRIP */}
       <div style={S.statStrip}>
-        {[["48","NATIONS"],["1,248","PLAYERS"],["◎312","LIVE POOL"],["30+","YRS TRADITION"]].map(([n,l],i)=>(
+        {[["48","NATIONS"],["1,248","PLAYERS"],["◎312 SOL","LIVE POOL"],["30+","YRS TRADITION"]].map(([n,l],i)=>(
           <div key={l} style={{...S.statStripItem,borderRight:i<3?`1px solid ${C.line}`:"none"}}>
             <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:22,color:C.ink}}>{n}</div>
             <div style={{fontSize:9,color:C.mute,letterSpacing:1,fontWeight:700,marginTop:2}}>{l}</div>
@@ -3177,7 +3430,7 @@ function About({setTab}){
         <div style={{position:"relative"}}>
           <div style={S.stepConnector}/>
           {[
-            ["01","BUILD","888 credits, 15 players. Pick your champions within the budget — like building a portfolio."],
+            ["01","BUILD","888 credits, 16 players. Pick your champions within the budget — like building a portfolio."],
             ["02","FIELD","Choose 11 starters and a formation each matchday. One captain scores double."],
             ["03","CLIMB","Points stack across the whole tournament. One global leaderboard, no eliminations."],
             ["04","WIN","Top 100 split the pool in SOL. Free to play, funded by token fees."],
@@ -3239,7 +3492,7 @@ function About({setTab}){
       {/* PRIZE CURVE */}
       <Section kicker="THE PAYOUT" title="Prize curve">
         <p style={{...S.p,marginBottom:16}}>
-          A strong podium, but the curve rewards depth — even 100th place gets paid.
+          A strong podium, but the curve rewards depth — even 100th place gets paid. All payouts in <b style={{color:C.ink}}>SOL</b>.
         </p>
         <div style={S.curveChart}>
           {[["1st",100,"◎41"],["2nd",68,"◎28"],["3rd",46,"◎19"],["4-10",33,"◎13"],["11-30",16,"◎3"],["31-100",8,"◎1.5"]].map(([l,h,v])=>(
@@ -3517,7 +3770,7 @@ function FullRules(){
     ["Yellow / Red card","−1 / −4"],["Own goal","−4"],
   ];
   const roster=[
-    ["Squad","15 players — 2 GK, 5 DEF, 5 MID, 3 FWD"],
+    ["Squad","16 players — 2 GK, 5 DEF, 6 MID, 3 FWD"],
     ["Budget","888 credits, fixed prices all tournament"],
     ["Starting XI","11 each matchday · min 1 GK, 3 DEF, 2 MID, 1 FWD"],
     ["Captain","double points · floored at 0"],
@@ -3558,6 +3811,424 @@ function FullRules(){
   );
 }
 
+// ─── STATS (World Cup) ────────────────────────────────────────────────────
+const QUALIFIED = [
+  "ARG","AUS","AUT","BEL","BRA","CAN","CIV","CMR","COL","CPV","CRC","CRO","CUW",
+  "DEN","ECU","EGY","ENG","ESP","FRA","GER","GHA","HAI","IRN","IRQ","JAM","JOR",
+  "JPN","KOR","KSA","MAR","MEX","NED","NGA","NOR","NZL","PAN","PAR","POL","POR",
+  "QAT","RSA","SCO","SEN","SUI","TUN","TUR","URU","USA","UZB",
+].sort();
+
+// Demo data used only when the backend returns nothing (local preview / pre-launch)
+const DEMO_SCORERS = [
+  {player_id:"d1",name:"K. Mbappé",team:"FRA",club:"Real Madrid",value:6},
+  {player_id:"d2",name:"H. Kane",team:"ENG",club:"Bayern",value:5},
+  {player_id:"d3",name:"L. Messi",team:"ARG",club:"Inter Miami",value:5},
+  {player_id:"d4",name:"Vinícius Jr",team:"BRA",club:"Real Madrid",value:4},
+  {player_id:"d5",name:"O. Dembélé",team:"FRA",club:"PSG",value:3},
+  {player_id:"d6",name:"C. Ronaldo",team:"POR",club:"Al-Nassr",value:3},
+];
+const DEMO_ASSISTS = [
+  {player_id:"a1",name:"K. De Bruyne",team:"BEL",club:"Napoli",value:5},
+  {player_id:"a2",name:"L. Messi",team:"ARG",club:"Inter Miami",value:4},
+  {player_id:"a3",name:"Raphinha",team:"BRA",club:"Barcelona",value:3},
+];
+const DEMO_CARDS = [
+  {player_id:"c1",name:"C. Romero",team:"ARG",club:"Tottenham",yellow:3,red:0},
+  {player_id:"c2",name:"Casemiro",team:"BRA",club:"Man United",yellow:2,red:1},
+];
+const DEMO_STANDINGS = {
+  A:[{team:"MEX",played:2,won:2,drawn:0,lost:0,gf:5,ga:1,points:6},
+     {team:"NED",played:2,won:1,drawn:1,lost:0,gf:4,ga:2,points:4},
+     {team:"USA",played:2,won:0,drawn:1,lost:1,gf:2,ga:4,points:1},
+     {team:"JPN",played:2,won:0,drawn:0,lost:2,gf:1,ga:5,points:0}],
+  B:[{team:"ARG",played:2,won:2,drawn:0,lost:0,gf:6,ga:1,points:6},
+     {team:"CRO",played:2,won:1,drawn:0,lost:1,gf:3,ga:3,points:3},
+     {team:"MAR",played:2,won:1,drawn:0,lost:1,gf:2,ga:2,points:3},
+     {team:"SEN",played:2,won:0,drawn:0,lost:2,gf:1,ga:6,points:0}],
+};
+const DEMO_BRACKET = {
+  "Round of 32":[
+    {home:"ARG",away:"3 B/E/F",home_score:2,away_score:0,done:true},
+    {home:"NOR",away:"3 A/C/D",home_score:1,away_score:0,done:true},
+    {home:"MEX",away:"URU",home_score:1,away_score:1,pens:"5-4",done:true},
+    {home:"GER",away:"SUI",home_score:2,away_score:2,pens:"3-4",done:true},
+    {home:"FRA",away:"3 D/E/F",home_score:3,away_score:1,done:true},
+    {home:"COL",away:"JPN",home_score:0,away_score:1,done:true},
+    {home:"ENG",away:"SEN",home_score:2,away_score:0,done:true},
+    {home:"NED",away:"ECU",home_score:3,away_score:2,done:true},
+    {home:"BRA",away:"3 E/H/I",home_score:null,away_score:null,done:false},
+    {home:"KOR",away:"BEL",home_score:null,away_score:null,done:false},
+    {home:"POR",away:"MAR",home_score:null,away_score:null,done:false},
+    {home:"CRO",away:"USA",home_score:null,away_score:null,done:false},
+    {home:"ESP",away:"3 F/G/H",home_score:null,away_score:null,done:false},
+    {home:"AUT",away:"SEN",home_score:null,away_score:null,done:false},
+    {home:"URU",away:"DEN",home_score:null,away_score:null,done:false},
+    {home:"CAN",away:"NGA",home_score:null,away_score:null,done:false},
+  ],
+  "Round of 16":[
+    {home:"ARG",away:"NOR",home_score:2,away_score:1,done:true},
+    {home:"MEX",away:"SUI",home_score:1,away_score:0,done:true},
+    {home:"FRA",away:"JPN",home_score:3,away_score:1,done:true},
+    {home:"ENG",away:"NED",home_score:1,away_score:1,pens:"4-3",done:true},
+    {home:"W41",away:"W42",home_score:null,away_score:null,done:false},
+    {home:"W43",away:"W44",home_score:null,away_score:null,done:false},
+    {home:"W45",away:"W46",home_score:null,away_score:null,done:false},
+    {home:"W47",away:"W48",home_score:null,away_score:null,done:false},
+  ],
+  "Quarterfinals":[
+    {home:"ARG",away:"MEX",home_score:2,away_score:0,done:true},
+    {home:"FRA",away:"ENG",home_score:null,away_score:null,done:false},
+    {home:"W57",away:"W58",home_score:null,away_score:null,done:false},
+    {home:"W59",away:"W60",home_score:null,away_score:null,done:false},
+  ],
+  "Semifinals":[
+    {home:"ARG",away:"—",home_score:null,away_score:null,done:false},
+    {home:"—",away:"—",home_score:null,away_score:null,done:false},
+  ],
+  "Final":[{home:"—",away:"—",home_score:null,away_score:null,done:false}],
+};
+
+function StatMineToggle({on,set}){
+  return (
+    <button onClick={()=>set(v=>!v)} style={{...S.statToggle,
+      ...(on?{borderColor:C.orange,background:C.orange,color:"#fff"}:{})}}>
+      <span style={{width:15,height:15,borderRadius:"50%",border:`2px solid ${on?"#fff":C.mute}`,
+        display:"grid",placeItems:"center"}}>{on&&<span style={{width:6,height:6,borderRadius:"50%",background:"#fff"}}/>}</span>
+      My players
+    </button>
+  );
+}
+
+function StatsPlayers({mySet}){
+  const [stat,setStat]=useState("goals");
+  const [nation,setNation]=useState("ALL");
+  const [mine,setMine]=useState(false);
+  const [gw,setGw]=useState(null); // null = whole tournament
+  const [rows,setRows]=useState(null); // null=loading
+
+  useEffect(()=>{
+    let live=true;
+    setRows(null);
+    const opts={ gw:gw||undefined, nation:nation!=="ALL"?nation:undefined };
+    const fetcher = stat==="goals"?getScorers : stat==="assists"?getAssists : getCards;
+    fetcher(stat==="cards"?{...opts}:opts).then(data=>{
+      if(!live) return;
+      let list = (data&&data.length) ? data
+        : (stat==="goals"?DEMO_SCORERS : stat==="assists"?DEMO_ASSISTS : DEMO_CARDS);
+      if(nation!=="ALL") list=list.filter(r=>r.team===nation);
+      setRows(list);
+    });
+    return ()=>{live=false;};
+  },[stat,nation,gw]);
+
+  const view = useMemo(()=>{
+    if(!rows) return null;
+    return mine ? rows.filter(r=>mySet.has(r.player_id)||mySet.has(r.name)) : rows;
+  },[rows,mine,mySet]);
+
+  const tabs=[{k:"goals",label:"Goals"},{k:"assists",label:"Assists"},{k:"cards",label:"Cards"}];
+
+  return (
+    <div>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:6,background:C.card,padding:4,borderRadius:12,border:`1px solid ${C.line}`}}>
+          {tabs.map(t=>(
+            <button key={t.k} onClick={()=>setStat(t.k)} style={{padding:"8px 14px",borderRadius:9,border:"none",
+              cursor:"pointer",fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:13,letterSpacing:.2,
+              background:stat===t.k?C.ink:"transparent",color:stat===t.k?"#fff":C.mute}}>{t.label}</button>
+          ))}
+        </div>
+        <div style={{marginLeft:"auto"}}><StatMineToggle on={mine} set={setMine}/></div>
+      </div>
+
+      {/* nation filter */}
+      <div style={{marginBottom:14}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
+          <span style={{fontSize:10.5,fontWeight:800,color:C.mute,letterSpacing:1,fontFamily:"'Archivo Narrow',sans-serif"}}>FILTER BY NATION</span>
+          {nation!=="ALL"&&<button onClick={()=>setNation("ALL")} style={{fontSize:10.5,fontWeight:800,
+            color:C.orangeDeep,background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"'Archivo',sans-serif"}}>✕ clear</button>}
+        </div>
+        <div style={{display:"flex",gap:7,overflowX:"auto",paddingBottom:4}}>
+          <button onClick={()=>setNation("ALL")} style={{flexShrink:0,padding:"7px 14px",borderRadius:10,cursor:"pointer",
+            border:`1.5px solid ${nation==="ALL"?C.ink:C.line}`,background:nation==="ALL"?C.ink:C.card,
+            color:nation==="ALL"?"#fff":C.mute,fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:12.5}}>All</button>
+          {QUALIFIED.map(t=>(
+            <button key={t} onClick={()=>setNation(t)} style={{flexShrink:0,display:"inline-flex",alignItems:"center",gap:6,
+              padding:"7px 12px",borderRadius:10,cursor:"pointer",
+              border:`1.5px solid ${nation===t?C.orange:C.line}`,background:nation===t?C.orangeSoft:C.card,
+              color:nation===t?C.orangeDeep:C.inkSoft,fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:12.5}}>
+              <span style={{fontSize:16}}>{FLAG[t]||"🏳"}</span>{t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* list */}
+      {view===null ? (
+        <div style={{textAlign:"center",padding:"40px",color:C.mute,fontSize:14}}>Loading…</div>
+      ) : view.length===0 ? (
+        <div style={{textAlign:"center",padding:"40px 20px",color:C.mute,fontSize:14,
+          background:C.card,borderRadius:14,border:`1px dashed ${C.line}`}}>
+          {mine?"None of your players in this ranking":`No ${nation!=="ALL"?nation+" ":""}players in this ranking`}
+        </div>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {view.map((r,i)=>{
+            const isMine=mySet.has(r.player_id)||mySet.has(r.name);
+            return (
+              <div key={r.player_id||i} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",
+                background:C.card,borderRadius:14,border:`1px solid ${isMine?C.orange:C.line}`}}>
+                <div style={{width:26,textAlign:"center",fontFamily:"'Archivo',sans-serif",fontWeight:900,
+                  fontSize:16,color:i<3?C.orange:C.mute,flexShrink:0}}>{i+1}</div>
+                <span style={{fontSize:22}}>{FLAG[r.team]||"🏳"}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7}}>
+                    <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:15,color:C.ink,
+                      whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</span>
+                    {isMine&&<span style={{fontSize:9,fontWeight:900,letterSpacing:.5,background:C.orangeSoft,
+                      color:C.orangeDeep,padding:"2px 6px",borderRadius:5,fontFamily:"'Archivo',sans-serif",flexShrink:0}}>MINE</span>}
+                  </div>
+                  {r.club&&<div style={{fontSize:11.5,color:C.mute,marginTop:1}}>{r.club}</div>}
+                </div>
+                {stat==="cards" ? (
+                  <div style={{display:"flex",gap:6,flexShrink:0}}>
+                    <span style={{display:"inline-flex",alignItems:"center",gap:4,fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:15,color:C.ink}}>
+                      <span style={{width:11,height:15,borderRadius:2,background:"#f5c518"}}/>{r.yellow||0}</span>
+                    {(r.red||0)>0&&<span style={{display:"inline-flex",alignItems:"center",gap:4,fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:15,color:C.ink}}>
+                      <span style={{width:11,height:15,borderRadius:2,background:"#e3342f"}}/>{r.red}</span>}
+                  </div>
+                ) : (
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",flexShrink:0}}>
+                    <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:22,color:C.orange,lineHeight:1}}>{r.value}</span>
+                    <span style={{fontSize:9,color:C.mute,letterSpacing:1,fontWeight:700,fontFamily:"'Archivo Narrow',sans-serif"}}>{stat==="goals"?"GOALS":"ASSISTS"}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatsGroups(){
+  const [groups,setGroups]=useState(null);
+  useEffect(()=>{let live=true;getStandings().then(d=>{if(live)setGroups(d&&Object.keys(d).length?d:DEMO_STANDINGS);});return ()=>{live=false;};},[]);
+  if(!groups) return <div style={{textAlign:"center",padding:"40px",color:C.mute}}>Loading…</div>;
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:18}}>
+      {Object.entries(groups).map(([g,teams])=>(
+        <div key={g}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:13,background:C.ink,color:"#fff",
+              padding:"4px 10px",borderRadius:7,letterSpacing:.5}}>GROUP {g}</span>
+            <div style={{flex:1,height:1,background:C.line}}/>
+          </div>
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.line}`,overflow:"hidden"}}>
+            <div style={{display:"grid",gridTemplateColumns:"24px 1fr 28px 28px 28px 38px 32px",gap:4,padding:"8px 12px",
+              borderBottom:`1px solid ${C.line}`,fontSize:10,fontWeight:800,color:C.mute,letterSpacing:.5,
+              fontFamily:"'Archivo Narrow',sans-serif",textAlign:"center"}}>
+              <span></span><span style={{textAlign:"left"}}>TEAM</span><span>P</span><span>W</span><span>L</span><span>GD</span><span>PTS</span>
+            </div>
+            {teams.map((row,i)=>(
+              <div key={row.team} style={{display:"grid",gridTemplateColumns:"24px 1fr 28px 28px 28px 38px 32px",gap:4,
+                padding:"10px 12px",alignItems:"center",textAlign:"center",
+                borderBottom:i<teams.length-1?`1px solid ${C.line}`:"none",background:i<2?C.orangeSoft+"55":"transparent"}}>
+                <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:13,color:i<2?C.orangeDeep:C.mute}}>{i+1}</span>
+                <span style={{display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>
+                  <span style={{fontSize:18}}>{FLAG[row.team]||"🏳"}</span>
+                  <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:13.5,color:C.ink}}>{row.team}</span>
+                </span>
+                <span style={{fontSize:13,color:C.inkSoft,fontWeight:600}}>{row.played}</span>
+                <span style={{fontSize:13,color:C.inkSoft,fontWeight:600}}>{row.won}</span>
+                <span style={{fontSize:13,color:C.inkSoft,fontWeight:600}}>{row.lost}</span>
+                <span style={{fontSize:13,color:C.inkSoft,fontWeight:600}}>{(row.gf-row.ga)>0?"+":""}{row.gf-row.ga}</span>
+                <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:15,color:C.ink}}>{row.points}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      <p style={{fontSize:11.5,color:C.mute,textAlign:"center",margin:0,lineHeight:1.5}}>
+        <span style={{display:"inline-block",width:10,height:10,borderRadius:3,background:C.orangeSoft,
+          border:`1px solid ${C.orange}`,verticalAlign:"middle",marginRight:5}}/>
+        Top two advance to the Round of 16
+      </p>
+    </div>
+  );
+}
+
+function StatsBracket(){
+  const [bracket,setBracket]=useState(null);
+  useEffect(()=>{let live=true;getBracket().then(d=>{if(live)setBracket(d&&Object.keys(d).length?d:DEMO_BRACKET);});return ()=>{live=false;};},[]);
+  if(!bracket) return <div style={{textAlign:"center",padding:"40px",color:C.mute}}>Loading…</div>;
+  const rounds=Object.entries(bracket);
+  const CARD_H=56,GAP_0=14,COL_W=168,COL_GAP=28,LABEL_H=22;
+  const UNIT=CARD_H+GAP_0;
+  const n0=rounds[0]?.[1].length||1;
+  const totalH=n0*UNIT;
+  const centerY=(r,i)=>UNIT*(Math.pow(2,r)*(i+0.5));
+  const treeW=rounds.length*COL_W+(rounds.length-1)*COL_GAP;
+  const Card=({m})=>(
+    <div style={{background:C.card,borderRadius:11,border:`1px solid ${m.done?C.orange:C.line}`,
+      overflow:"hidden",height:CARD_H,display:"flex",flexDirection:"column"}}>
+      {[["home","home_score"],["away","away_score"]].map(([tk,sk],idx)=>{
+        const team=m[tk],score=m[sk];
+        const isReal=team&&team!=="—"&&FLAG[team];
+        const isPh=team&&team!=="—"&&!FLAG[team];
+        const win=m.done&&((sk==="home_score"&&(m.home_score>m.away_score||(m.pens&&m.home_score===m.away_score)))||(sk==="away_score"&&m.away_score>m.home_score));
+        return (
+          <div key={tk} style={{display:"flex",alignItems:"center",gap:6,padding:"0 9px",flex:1,
+            borderBottom:idx===0?`1px solid ${C.line}`:"none",background:win?C.orangeSoft:"transparent"}}>
+            {isReal?<span style={{fontSize:15}}>{FLAG[team]}</span>:<span style={{width:15,textAlign:"center",color:C.mute,fontSize:11}}>{isPh?"·":""}</span>}
+            <span style={{flex:1,fontFamily:"'Archivo',sans-serif",fontWeight:win?900:700,fontSize:isPh?10.5:12.5,
+              color:team==="—"||isPh?C.mute:C.ink,fontStyle:isPh?"italic":"normal",
+              whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{team}</span>
+            {m.pens&&win&&<span style={{fontSize:8,color:C.orangeDeep,fontWeight:800}}>P</span>}
+            <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:13,color:win?C.orangeDeep:C.mute,minWidth:12,textAlign:"center"}}>{score!=null?score:"–"}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+  return (
+    <div>
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch",margin:"0 -16px",padding:"4px 16px 10px"}}>
+        <div style={{position:"relative",width:treeW,height:totalH+LABEL_H}}>
+          {rounds.map(([round],r)=>(
+            <div key={"l"+round} style={{position:"absolute",top:0,left:r*(COL_W+COL_GAP),width:COL_W,textAlign:"center",
+              fontFamily:"'Archivo Narrow',sans-serif",fontWeight:800,fontSize:10.5,color:C.mute,letterSpacing:.8}}>{round.toUpperCase()}</div>
+          ))}
+          <svg width={treeW} height={totalH} style={{position:"absolute",top:LABEL_H,left:0,pointerEvents:"none"}}>
+            {rounds.slice(0,-1).map(([,matches],r)=>{
+              const x1=r*(COL_W+COL_GAP)+COL_W,x2=(r+1)*(COL_W+COL_GAP),xm=(x1+x2)/2;
+              return matches.map((_,i)=>{
+                if(i%2!==0) return null;
+                const yA=centerY(r,i),yB=centerY(r,i+1),yN=centerY(r+1,Math.floor(i/2));
+                return (<g key={`${r}-${i}`} stroke={C.line} strokeWidth="1.5" fill="none">
+                  <path d={`M${x1},${yA} H${xm} V${yB} H${x1}`}/><path d={`M${xm},${yN} H${x2}`}/></g>);
+              });
+            })}
+          </svg>
+          {rounds.map(([round,matches],r)=>(
+            <div key={round} style={{position:"absolute",top:LABEL_H,left:r*(COL_W+COL_GAP),width:COL_W}}>
+              {matches.map((m,i)=>(
+                <div key={i} style={{position:"absolute",top:centerY(r,i)-CARD_H/2,left:0,width:COL_W}}><Card m={m}/></div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      <p style={{fontSize:11.5,color:C.mute,textAlign:"center",margin:"12px 0 0",lineHeight:1.5,padding:"0 8px"}}>
+        48-team format · 32 teams reach the knockouts. Scroll to follow the path to the Final.
+      </p>
+    </div>
+  );
+}
+
+function StatsSchedule(){
+  const [gw,setGw]=useState(1);
+  const [all,setAll]=useState(null);
+  useEffect(()=>{let live=true;getFixtures().then(list=>{if(live)setAll(Array.isArray(list)?list:[]);});return ()=>{live=false;};},[]);
+  const fixtures=useMemo(()=>{
+    if(!all) return null;
+    return all.filter(f=>(f.gameweek_id||f.gameweek)===gw);
+  },[all,gw]);
+  return (
+    <div>
+      <div style={{display:"flex",gap:8,overflowX:"auto",marginBottom:16,paddingBottom:4}}>
+        {[1,2,3,4,5,6,7,8].map(n=>(
+          <button key={n} onClick={()=>setGw(n)} style={{flexShrink:0,minWidth:54,padding:"10px 0",borderRadius:11,cursor:"pointer",
+            border:`1.5px solid ${gw===n?C.ink:C.line}`,background:gw===n?C.ink:C.card,color:gw===n?"#fff":C.mute,
+            fontFamily:"'Archivo',sans-serif",fontWeight:800,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+            <span style={{fontSize:9,letterSpacing:.5,opacity:.7,fontFamily:"'Archivo Narrow',sans-serif"}}>GW</span>
+            <span style={{fontSize:17,lineHeight:1}}>{n}</span>
+          </button>
+        ))}
+      </div>
+      {fixtures===null ? (
+        <div style={{textAlign:"center",padding:"40px",color:C.mute}}>Loading…</div>
+      ) : fixtures.length===0 ? (
+        <div style={{textAlign:"center",padding:"40px 20px",color:C.mute,fontSize:14,background:C.card,
+          borderRadius:14,border:`1px dashed ${C.line}`}}>No fixtures scheduled for GW{gw} yet</div>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",gap:9}}>
+          {fixtures.map((f,i)=>{
+            const home=f.home_team||f.home,away=f.away_team||f.away;
+            const hs=f.home_score,as=f.away_score;
+            const live=f.status==="live"||f.status==="LIVE";
+            const done=f.status==="finished"||f.status==="FT"||hs!=null;
+            return (
+              <div key={f.id||i} style={{display:"flex",alignItems:"center",gap:10,padding:"13px 15px",
+                background:C.card,borderRadius:14,border:`1px solid ${live?C.orange:C.line}`}}>
+                <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+                  <span style={{display:"flex",alignItems:"center",gap:7,flex:1,justifyContent:"flex-end"}}>
+                    <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:C.ink}}>{home}</span>
+                    <span style={{fontSize:20}}>{FLAG[home]||"🏳"}</span>
+                  </span>
+                  <span style={{minWidth:54,textAlign:"center"}}>
+                    {done||live ? <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:18,color:C.ink}}>{hs??0}-{as??0}</span>
+                      : <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:12,color:C.mute}}>vs</span>}
+                  </span>
+                  <span style={{display:"flex",alignItems:"center",gap:7,flex:1}}>
+                    <span style={{fontSize:20}}>{FLAG[away]||"🏳"}</span>
+                    <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:C.ink}}>{away}</span>
+                  </span>
+                </div>
+                <div style={{width:44,flexShrink:0,textAlign:"right"}}>
+                  {live&&<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:900,color:C.orange,fontFamily:"'Archivo',sans-serif"}}>
+                    <span style={{width:6,height:6,borderRadius:"50%",background:C.orange,animation:"pulse 1.2s infinite"}}/>LIVE</span>}
+                  {done&&!live&&<span style={{fontSize:10,fontWeight:800,color:C.mute,letterSpacing:.5,fontFamily:"'Archivo Narrow',sans-serif"}}>FT</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stats({squad}){
+  const [section,setSection]=useState("players");
+  const DEMO_PLAYERS=usePlayers();
+  // map squad ids → set of {id, name} so "my players" can match backend rows by id or name
+  const mySet=useMemo(()=>{
+    const s=new Set();
+    squad.forEach(id=>{ s.add(id); const p=DEMO_PLAYERS.find(x=>x.id===id); if(p){s.add(p.n);s.add(p.name);} });
+    return s;
+  },[squad,DEMO_PLAYERS]);
+  const sections=[
+    {k:"players",label:"Players"},
+    {k:"groups",label:"Groups"},
+    {k:"bracket",label:"Bracket"},
+    {k:"schedule",label:"Schedule"},
+  ];
+  return (
+    <div>
+      <div style={{padding:"18px 16px 4px"}}>
+        <h1 style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:28,color:C.ink,margin:0,letterSpacing:-.5}}>Stats</h1>
+        <p style={{fontSize:13,color:C.mute,margin:"3px 0 0"}}>World Cup 2026 · live data</p>
+      </div>
+      <div style={{display:"flex",gap:8,overflowX:"auto",padding:"14px 16px 12px"}}>
+        {sections.map(s=>(
+          <button key={s.k} onClick={()=>setSection(s.k)} style={{flexShrink:0,padding:"10px 16px",borderRadius:12,cursor:"pointer",
+            border:`1.5px solid ${section===s.k?C.orange:C.line}`,background:section===s.k?C.orange:C.card,
+            color:section===s.k?"#fff":C.inkSoft,fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:13.5,letterSpacing:.2}}>{s.label}</button>
+        ))}
+      </div>
+      <div style={{padding:"6px 16px 24px"}}>
+        {section==="players"&&<StatsPlayers mySet={mySet}/>}
+        {section==="groups"&&<StatsGroups/>}
+        {section==="bracket"&&<StatsBracket/>}
+        {section==="schedule"&&<StatsSchedule/>}
+      </div>
+    </div>
+  );
+}
+
 function TabBar({tab,setTab,squadCount}){
   const tabs=[
     {k:"build",label:"Build",icon:"ball"},
@@ -3565,6 +4236,7 @@ function TabBar({tab,setTab,squadCount}){
     {k:"ranks",label:"Ranks",icon:"trophy"},
     {k:"quests",label:"Quests",icon:"target"},
     {k:"token",label:"Pool",icon:"pool"},
+    {k:"stats",label:"Stats",icon:"chart"},
     {k:"about",label:"Info",icon:"info"},
   ];
   return (
@@ -3619,6 +4291,13 @@ const S={
 
   search:{width:"100%",background:C.card,border:`1.5px solid ${C.line}`,borderRadius:12,padding:"12px 16px",
     color:C.ink,fontSize:15,fontFamily:"'Inter',sans-serif",outline:"none",marginBottom:4},
+  marketStick:{position:"sticky",top:56,zIndex:18,background:C.paper,paddingTop:8,
+    borderBottom:`1px solid ${C.line}`,boxShadow:"0 6px 12px -8px rgba(0,0,0,.12)"},
+  projPop:{position:"absolute",top:"calc(100% + 10px)",right:0,zIndex:41,width:248,
+    background:C.card,border:`1px solid ${C.line}`,borderRadius:12,padding:"12px 14px",
+    boxShadow:"0 12px 30px -8px rgba(0,0,0,.25)"},
+  projPopArrow:{position:"absolute",top:-6,right:14,width:11,height:11,background:C.card,
+    borderLeft:`1px solid ${C.line}`,borderTop:`1px solid ${C.line}`,transform:"rotate(45deg)"},
   filterScroll:{display:"flex",gap:8,padding:"10px 16px",overflowX:"auto",WebkitOverflowScrolling:"touch"},
   chip:{flexShrink:0,padding:"8px 16px",borderRadius:20,border:`1.5px solid ${C.line}`,background:C.card,color:C.mute,
     fontFamily:"'Archivo Narrow',sans-serif",fontWeight:700,fontSize:13,letterSpacing:.5,cursor:"pointer",whiteSpace:"nowrap"},
@@ -3791,19 +4470,40 @@ const S={
   myRankCard:{position:"relative",overflow:"hidden",background:C.ink,borderRadius:18,padding:"20px 22px"},
   poolBanner:{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.card,borderRadius:14,
     padding:"14px 18px",border:`1px solid ${C.line}`},
+  howItWorksBtn:{display:"inline-flex",alignItems:"center",gap:5,background:C.ink,color:"#fff",border:"none",
+    padding:"9px 14px",borderRadius:11,cursor:"pointer",fontFamily:"'Archivo',sans-serif",fontWeight:800,
+    fontSize:12.5,letterSpacing:.2},
+  howItWorksWide:{width:"100%",marginTop:8,display:"flex",alignItems:"center",justifyContent:"center",gap:6,
+    background:C.card,color:C.ink,border:`1.5px solid ${C.line}`,padding:"11px",borderRadius:12,cursor:"pointer",
+    fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:13,letterSpacing:.2},
+  holdExplain:{marginTop:8,background:C.card,border:`1px solid ${C.line}`,borderRadius:14,padding:"16px 16px 14px"},
+  holdFormula:{background:C.ink,color:"#fff",borderRadius:10,padding:"12px 14px",textAlign:"center",
+    fontFamily:"'Space Mono','Archivo',monospace",fontWeight:700,fontSize:12.5,letterSpacing:.2,lineHeight:1.4},
+  holdSnap:{marginTop:12,background:C.orangeSoft,borderRadius:11,padding:"12px 14px"},
+  scopeToggle:{display:"flex",gap:6,background:C.card,padding:4,borderRadius:12,border:`1px solid ${C.line}`,
+    marginBottom:12},
+  scopeBtn:{flex:1,padding:"9px 0",borderRadius:9,border:"none",cursor:"pointer",background:"transparent",
+    color:C.mute,fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:13,letterSpacing:.2},
+  scopeBtnOn:{background:C.ink,color:"#fff"},
 
   tokenHero:{position:"relative",overflow:"hidden",background:C.ink,borderRadius:20,padding:"24px 22px"},
   accessCard:{display:"flex",alignItems:"center",gap:14,background:C.card,borderRadius:14,padding:"14px 16px",
     border:`1.5px solid ${C.orange}33`,marginTop:14},
   tokenStat:{background:C.card,borderRadius:14,padding:"16px",border:`1px solid ${C.line}`},
+  solscanLink:{display:"inline-flex",alignItems:"center",gap:6,marginTop:14,padding:"8px 12px",
+    background:"#ffffff1a",border:"1px solid #ffffff33",borderRadius:10,color:"#fff",
+    textDecoration:"none",fontFamily:"'Archivo',sans-serif",fontWeight:700,fontSize:12,letterSpacing:.2},
 
   tabbar:{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,zIndex:40,
     height:64,display:"flex",background:"rgba(255,255,255,.96)",backdropFilter:"blur(14px)",borderTop:`1px solid ${C.line}`},
   tabBtn:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,
-    border:"none",background:"none",color:C.mute,cursor:"pointer",padding:"8px 0"},
+    border:"none",background:"none",color:C.mute,cursor:"pointer",padding:"8px 0",minWidth:0},
   tabBtnOn:{color:C.orange},
   tabDot:{position:"absolute",top:-5,right:-9,background:C.orange,color:"#fff",fontSize:9,fontWeight:900,
     minWidth:15,height:15,borderRadius:8,display:"grid",placeItems:"center",padding:"0 3px"},
+  statToggle:{display:"inline-flex",alignItems:"center",gap:7,padding:"8px 13px",borderRadius:11,
+    border:`1.5px solid ${C.line}`,background:C.card,color:C.inkSoft,cursor:"pointer",
+    fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:12.5,letterSpacing:.2,flexShrink:0},
 
   // ABOUT
   aboutHero:{position:"relative",overflow:"hidden",background:C.ink,margin:"14px 16px",

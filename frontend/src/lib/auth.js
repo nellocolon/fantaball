@@ -21,11 +21,13 @@ function setSessionUser(user) {
   emit(user);
 }
 
-// ── X (Twitter) OAuth via Supabase ──
+// ── X OAuth 2.0 via Supabase ──
+// Supabase's provider key for X OAuth 2.0 is "x" (not "twitter", which is the
+// legacy OAuth 1.0a provider being deprecated).
 export async function signInWithX() {
   if (!HAS_SUPABASE) { console.warn("Auth disabled (no Supabase env)"); return null; }
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "twitter",
+    provider: "x",
     options: { redirectTo: window.location.origin },
   });
   if (error) throw error;
@@ -81,12 +83,62 @@ export async function initAuth() {
 }
 
 // ── Solana wallet linking ──
-// Detects an injected wallet (Phantom/Backpack/Solflare expose window.solana).
-// Links the address onto the current user row (users.wallet).
+// Desktop & in-app browsers expose an injected provider (window.solana /
+// window.phantom.solana). Mobile web browsers (Safari/Chrome) do NOT — there,
+// we deeplink into Phantom's in-app browser (the "Browse" deeplink), where the
+// site reloads with the provider injected and connect works normally.
+function getInjectedProvider() {
+  if (typeof window === "undefined") return null;
+  // Phantom exposes window.phantom.solana (preferred) and legacy window.solana.
+  const phantom = window.phantom?.solana;
+  if (phantom?.isPhantom) return phantom;
+  if (window.solana?.isPhantom) return window.solana;
+  return window.solana || window.backpack || window.solflare || null;
+}
+
+// Wait briefly for a late-injected provider (mobile in-app browsers can be slow).
+function waitForProvider(timeoutMs = 800) {
+  return new Promise((resolve) => {
+    const found = getInjectedProvider();
+    if (found) return resolve(found);
+    let elapsed = 0;
+    const step = 100;
+    const t = setInterval(() => {
+      const p = getInjectedProvider();
+      elapsed += step;
+      if (p || elapsed >= timeoutMs) { clearInterval(t); resolve(p || null); }
+    }, step);
+  });
+}
+
+function isMobile() {
+  if (typeof navigator === "undefined") return false;
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+// Open the current page inside Phantom's in-app browser.
+// Phantom "Browse" deeplink format: https://phantom.app/ul/browse/<url>?ref=<url>
+function openInPhantom() {
+  const url = window.location.href;
+  const enc = encodeURIComponent(url);
+  const ref = encodeURIComponent(window.location.origin);
+  window.location.href = `https://phantom.app/ul/browse/${enc}?ref=${ref}`;
+}
+
 export async function connectWallet() {
-  const provider = (typeof window !== "undefined") &&
-    (window.solana || window.backpack || window.solflare);
-  if (!provider) { throw new Error("No Solana wallet found (install Phantom/Backpack/Solflare)"); }
+  const provider = await waitForProvider();
+
+  // No injected provider. On mobile this almost always means we're in a plain
+  // mobile browser — deeplink into Phantom's in-app browser instead of failing.
+  if (!provider) {
+    if (isMobile()) {
+      openInPhantom();
+      // The page navigates away to Phantom; return a benign signal.
+      return null;
+    }
+    throw new Error("No Solana wallet found. Install Phantom, Backpack or Solflare.");
+  }
+
   const resp = await provider.connect();
   const address = resp?.publicKey?.toString?.() || provider.publicKey?.toString?.();
   if (!address) throw new Error("Wallet did not return an address");

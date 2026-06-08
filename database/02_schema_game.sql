@@ -32,7 +32,7 @@ create table if not exists rosters (
 );
 
 -- ---------------------------------------------------------------------
--- ROSTER_PLAYERS — i 15 giocatori della rosa
+-- ROSTER_PLAYERS — i 16 giocatori della rosa
 -- price_paid: prezzo FISSO pagato all'acquisto (serve per il rimborso 50%).
 -- active = false quando il giocatore e' uscito dalla rosa (storico transfer).
 -- ---------------------------------------------------------------------
@@ -107,7 +107,7 @@ create or replace view player_map as
 
 -- ---------------------------------------------------------------------
 -- LINEUPS — SNAPSHOT per giornata: 11 titolari + 4 panchina + ruoli C/VC
--- Una riga per (roster, gameweek, player). 15 righe per utente per giornata.
+-- Una riga per (roster, gameweek, player). 16 righe per utente per giornata.
 -- E' la prova incontestabile di cosa era schierato.
 -- ---------------------------------------------------------------------
 create table if not exists lineups (

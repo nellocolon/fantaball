@@ -239,4 +239,28 @@ function formatCountdown(ms) {
   return parts.join(" ");
 }
 
+// ─── STATS (World Cup) ───────────────────────────────────────────────────
+// All read from the public FastAPI; on failure or no backend, callers get []/{}.
+// Demo fallbacks live in App.jsx so the UI is never empty during local preview.
+export async function getScorers(opts = {}) {
+  try { return (await publicApi.getStatScorers(opts)) || []; }
+  catch (e) { console.warn("getScorers:", e?.message || e); return []; }
+}
+export async function getAssists(opts = {}) {
+  try { return (await publicApi.getStatAssists(opts)) || []; }
+  catch (e) { console.warn("getAssists:", e?.message || e); return []; }
+}
+export async function getCards(opts = {}) {
+  try { return (await publicApi.getStatCards(opts)) || []; }
+  catch (e) { console.warn("getCards:", e?.message || e); return []; }
+}
+export async function getStandings() {
+  try { return (await publicApi.getStandings()) || {}; }
+  catch (e) { console.warn("getStandings:", e?.message || e); return {}; }
+}
+export async function getBracket() {
+  try { return (await publicApi.getBracket()) || {}; }
+  catch (e) { console.warn("getBracket:", e?.message || e); return {}; }
+}
+
 export { HAS_SUPABASE };

@@ -7,17 +7,17 @@ Da affiancare al *Regolamento Punteggi*. Filosofia: poche regole, tutto immediat
 
 ## 1. La tua rosa
 
-Scegli **15 giocatori** tra i 1.248 del Mondiale, entro un budget fisso.
+Scegli **16 giocatori** tra i 1.248 del Mondiale, entro un budget fisso.
 
 | Ruolo | Quanti |
 |---|---|
 | Portieri (GK) | 2 |
 | Difensori (DF) | 5 |
-| Centrocampisti (MF) | 5 |
+| Centrocampisti (MF) | 6 |
 | Attaccanti (FW) | 3 |
-| **Totale** | **15** |
+| **Totale** | **16** |
 
-**Budget: 888 crediti.** Ogni giocatore ha un prezzo fisso (resta lo stesso per tutto il torneo). La somma dei 15 prezzi non può superare 888.
+**Budget: 888 crediti.** Ogni giocatore ha un prezzo fisso (resta lo stesso per tutto il torneo). La somma dei 16 prezzi non può superare 888.
 
 Nessun limite di giocatori per nazionale: puoi prendere quanti brasiliani vuoi. Con 888 crediti puoi costruire una squadra forte e divertente — 4-5 campioni più un blocco di buoni comprimari — ma non un undici tutto-stelle: quello sfora il budget. Il bello sta proprio nello scegliere su chi puntare.
 
@@ -27,7 +27,7 @@ Nessun limite di giocatori per nazionale: puoi prendere quanti brasiliani vuoi. 
 
 ## 2. Chi schieri
 
-A ogni giornata schieri **11 degli 15** giocatori. Gli altri 4 sono in panchina.
+A ogni giornata schieri **11 dei 16** giocatori. Gli altri 5 sono in panchina.
 
 Schema minimo obbligatorio tra gli 11:
 - almeno **1 GK**
@@ -66,7 +66,7 @@ La rosa si blocca all'inizio di ogni fase e si può modificare solo nelle **fine
 
 `Gironi → Ottavi → Quarti → Semifinali → Finale`
 
-In ogni finestra hai un numero fisso di **transfer** (un transfer = esci un giocatore, entri un altro). Ogni cambio deve sempre rispettare budget (≤800) e composizione (2-5-5-3).
+In ogni finestra hai un numero fisso di **transfer** (un transfer = esci un giocatore, entri un altro). Ogni cambio deve sempre rispettare budget (≤800) e composizione (2-5-6-3).
 
 ### Giocatori eliminati
 Quando la nazionale di un tuo giocatore **esce dal torneo** (eliminata ai gironi o in una partita a eliminazione diretta), quel giocatore diventa inutilizzabile.
@@ -96,7 +96,7 @@ La squadra "sexy" ti dà 4 campioni veri ma quasi zero margine per i rimpiazzi. 
 
 ## 7. Riepilogo in 6 punti
 
-1. **15 giocatori** (2-5-5-3), budget **888**, prezzi fissi.
+1. **16 giocatori** (2-5-6-3), budget **888**, prezzi fissi.
 2. Schieri **11** a giornata, schema libero sopra il minimo (1-3-2-1).
 3. **Capitano ×2**, vice ×1,5 se il capitano non gioca.
 4. Riserva entra in automatico se un titolare non gioca.

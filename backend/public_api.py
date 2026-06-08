@@ -215,3 +215,90 @@ def stream_state():
         pass
 
     return out
+
+
+# ─── STATS (World Cup) ──────────────────────────────────────────────────────
+# These read aggregated views populated by import_stats.py:
+#   player_stats_agg(player_id, name, team, club, goals, assists, yellow, red, gw)
+#   group_standings(group_name, team, played, won, drawn, lost, gf, ga, points)
+#   bracket(round, slot, home, away, home_score, away_score, pens, done)
+
+def _stat_rows(metric, gw, nation, limit):
+    q = f"select=player_id,name,team,club,{metric}&{metric}=gt.0&order={metric}.desc&limit={limit}"
+    if gw:
+        q += f"&gw=eq.{gw}"
+    if nation:
+        q += f"&team=eq.{nation}"
+    try:
+        return supa_get("player_stats_agg", q)
+    except HTTPException:
+        return []
+
+
+@app.get("/public/stats/scorers")
+def stats_scorers(gw: Optional[int] = None, nation: Optional[str] = None, limit: int = 50):
+    rows = _stat_rows("goals", gw, nation, limit)
+    return [{"player_id": r["player_id"], "name": r["name"], "team": r["team"],
+             "club": r.get("club"), "value": r["goals"]} for r in rows]
+
+
+@app.get("/public/stats/assists")
+def stats_assists(gw: Optional[int] = None, nation: Optional[str] = None, limit: int = 50):
+    rows = _stat_rows("assists", gw, nation, limit)
+    return [{"player_id": r["player_id"], "name": r["name"], "team": r["team"],
+             "club": r.get("club"), "value": r["assists"]} for r in rows]
+
+
+@app.get("/public/stats/cards")
+def stats_cards(gw: Optional[int] = None, nation: Optional[str] = None,
+                type: Optional[str] = None, limit: int = 50):
+    metric = "red" if type == "red" else "yellow"
+    q = f"select=player_id,name,team,club,yellow,red&{metric}=gt.0&order={metric}.desc&limit={limit}"
+    if gw:
+        q += f"&gw=eq.{gw}"
+    if nation:
+        q += f"&team=eq.{nation}"
+    try:
+        rows = supa_get("player_stats_agg", q)
+    except HTTPException:
+        rows = []
+    return [{"player_id": r["player_id"], "name": r["name"], "team": r["team"],
+             "club": r.get("club"), "yellow": r.get("yellow", 0), "red": r.get("red", 0)} for r in rows]
+
+
+@app.get("/public/standings")
+def standings():
+    """Group standings keyed by group letter, each a sorted list of teams."""
+    try:
+        rows = supa_get("group_standings",
+                        "select=group_name,team,played,won,drawn,lost,gf,ga,points"
+                        "&order=group_name.asc,points.desc,gf.desc")
+    except HTTPException:
+        return {}
+    out = {}
+    for r in rows:
+        out.setdefault(r["group_name"], []).append({
+            "team": r["team"], "played": r["played"], "won": r["won"],
+            "drawn": r["drawn"], "lost": r["lost"], "gf": r["gf"], "ga": r["ga"],
+            "points": r["points"],
+        })
+    return out
+
+
+@app.get("/public/bracket")
+def bracket():
+    """Knockout bracket keyed by round name, in slot order."""
+    try:
+        rows = supa_get("bracket",
+                        "select=round,slot,home,away,home_score,away_score,pens,done"
+                        "&order=round_order.asc,slot.asc")
+    except HTTPException:
+        return {}
+    out = {}
+    for r in rows:
+        out.setdefault(r["round"], []).append({
+            "home": r["home"], "away": r["away"],
+            "home_score": r["home_score"], "away_score": r["away_score"],
+            "pens": r.get("pens"), "done": r.get("done", False),
+        })
+    return out

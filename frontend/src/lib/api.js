@@ -11,6 +11,9 @@ async function get(path, params = {}) {
     if (path.includes("/fixtures")) return [];
     if (path.includes("/leaderboard")) return { gameweek: null, rows: [] };
     if (path.includes("/stream/state")) return { coaches: null, squads: null, owns: [], caps: [] };
+    if (path.includes("/standings")) return {};
+    if (path.includes("/bracket")) return {};
+    if (path.includes("/stats/")) return [];
     return null;
   }
   const usp = new URLSearchParams(params);
@@ -50,6 +53,27 @@ export async function getUserRank(handle) {
 
 export async function getStreamState() {
   return get("/public/stream/state");
+}
+
+// ─── STATS (World Cup) ───────────────────────────────────────────────────
+// gw optional (filter by gameweek), nation optional (3-letter code)
+export async function getStatScorers({ gw = null, nation = null, limit = 50 } = {}) {
+  const p = { limit }; if (gw) p.gw = gw; if (nation) p.nation = nation;
+  return get("/public/stats/scorers", p);     // [{player_id,name,team,club,value}]
+}
+export async function getStatAssists({ gw = null, nation = null, limit = 50 } = {}) {
+  const p = { limit }; if (gw) p.gw = gw; if (nation) p.nation = nation;
+  return get("/public/stats/assists", p);
+}
+export async function getStatCards({ gw = null, nation = null, type = null, limit = 50 } = {}) {
+  const p = { limit }; if (gw) p.gw = gw; if (nation) p.nation = nation; if (type) p.type = type;
+  return get("/public/stats/cards", p);        // [{player_id,name,team,club,yellow,red}]
+}
+export async function getStandings() {
+  return get("/public/standings");             // {A:[{team,played,won,drawn,lost,gf,ga,gd,points}], ...}
+}
+export async function getBracket() {
+  return get("/public/bracket");               // {"Round of 32":[{home,away,home_score,away_score,pens,done}], ...}
 }
 
 export const API_URL = API_BASE || null;
