@@ -5,9 +5,10 @@
 #   VITE_SUPABASE_URL
 #   VITE_SUPABASE_ANON_KEY
 #   VITE_API_URL (optional)
+#   VITE_SITE_URL (strongly recommended for reliable X OAuth redirects)
 #
-# DO NOT set plain SUPABASE_URL or SUPABASE_KEY here — they are for backend only
-# and will be embedded into the frontend JS, triggering Netlify's secrets scanner.
+# DO NOT set plain SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, or API_FOOTBALL_KEY here
+# — they are for backend only and will trigger Netlify's secrets scanner (or leak).
 
 [build]
   base = "frontend"

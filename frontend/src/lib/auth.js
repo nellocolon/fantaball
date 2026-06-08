@@ -33,11 +33,15 @@ export async function signInWithX() {
     throw new Error(msg);
   }
 
+  // Use VITE_SITE_URL if set (recommended for production + custom domains).
+  // Falls back to current origin (works for localhost and Netlify preview deploys).
+  const siteUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SITE_URL) || window.location.origin;
+
   // Explicit call as requested — this is what reaches Supabase
-  console.log('[auth] >>> Calling supabase.auth.signInWithOAuth({ provider: "x", options: { redirectTo: "' + window.location.origin + '" } })');
+  console.log('[auth] >>> Calling supabase.auth.signInWithOAuth({ provider: "x", options: { redirectTo: "' + siteUrl + '" } })');
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "x",
-    options: { redirectTo: window.location.origin },
+    options: { redirectTo: siteUrl },
   });
   console.log('[auth] signInWithOAuth response — data:', data, 'error:', error);
 
