@@ -1927,11 +1927,17 @@ function LoginSheet({authUser, onClose, authReturning = false, callbackError = "
         </div>
 
         {authReturning || callbackError ? (
-          <div style={{...S.loginBtn, background: C.card, color: C.ink, border: `1px solid ${C.line}`, justifyContent: 'center', cursor: 'default', flexDirection: 'column', gap: 4}}>
+          <div style={{...S.loginBtn, background: C.card, color: C.ink, border: `1px solid ${C.line}`, justifyContent: 'center', cursor: 'default', flexDirection: 'column', gap: 4, padding: '12px 16px'}}>
             {callbackError 
-              ? `OAuth error: ${callbackError}` 
+              ? (callbackError === 'server_error' 
+                  ? 'OAuth server_error from X/Supabase' 
+                  : `OAuth error: ${callbackError}`)
               : 'Completing sign-in with X…'}
-            <span style={{fontSize: 11, opacity: 0.7}}>Check browser console for details. Common cause: redirect URL not whitelisted in Supabase/X settings.</span>
+            <span style={{fontSize: 11, opacity: 0.8, textAlign: 'center', lineHeight: 1.3}}>
+              {callbackError === 'server_error' 
+                ? 'This usually means the Callback URI in your X app is not exactly https://YOUR-REF.supabase.co/auth/v1/callback (use v1, not v2), or https://fantaball.tech is not in Supabase Redirect URLs. Check both exactly (no extra slash, correct protocol).'
+                : 'Check browser console (F12) for [auth] logs. Verify redirect URLs in Supabase and X Developer Portal.'}
+            </span>
           </div>
         ) : (
           <button onClick={doX} disabled={busy==="x"}

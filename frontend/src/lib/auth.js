@@ -34,8 +34,10 @@ export async function signInWithX() {
   }
 
   // Use VITE_SITE_URL if set (recommended for production + custom domains).
-  // Falls back to current origin (works for localhost and Netlify preview deploys).
-  const siteUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SITE_URL) || window.location.origin;
+  // On production, force to https://fantaball.tech to avoid any origin mismatch (e.g. netlify subdomain vs custom domain).
+  const siteUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SITE_URL) 
+    || (typeof import.meta !== 'undefined' && import.meta.env?.PROD ? 'https://fantaball.tech' : window.location.origin);
+  console.log('[auth] Using redirectTo for OAuth:', siteUrl, ' (PROD=', import.meta.env?.PROD, ')');
 
   // Explicit call as requested — this is what reaches Supabase
   console.log('[auth] >>> Calling supabase.auth.signInWithOAuth({ provider: "x", options: { redirectTo: "' + siteUrl + '" } })');
@@ -115,7 +117,8 @@ export async function initAuth() {
 
     if (urlError) {
       callbackError = urlError;
-      console.warn('[auth] OAuth return error in URL:', urlError);
+      const errorDesc = url.searchParams.get('error_description') || url.searchParams.get('error_code') || '';
+      console.warn('[auth] OAuth return error in URL:', urlError, 'description:', errorDesc, 'full search:', window.location.search);
       // Clean the error params so they don't stick around on refresh
       const cleanUrl = window.location.pathname + (window.location.hash || '');
       window.history.replaceState({}, document.title, cleanUrl);
