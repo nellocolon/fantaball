@@ -1743,20 +1743,61 @@ function LoginSheet({authUser,onClose}){
   const [err,setErr]=useState("");
   const [wallet,setWallet]=useState(authUser?.wallet||null);
 
+  // Capture whether we were already logged when the sheet opened.
+  // Used to auto-close only on *new* successful login (e.g. after X OAuth returns and authUser updates).
+  const openedWithAuth = useRef(!!authUser?.id);
+
+  // If a login succeeds while this sheet is mounted (auth state arrives via onAuthChange
+  // after signInWithOAuth redirect or in-page session), close the sheet. The main App
+  // effect will have already called getMyRoster + getLineup for the new authUser.
+  useEffect(()=>{
+    if(authUser?.id && !openedWithAuth.current){
+      onClose();
+    }
+  },[authUser?.id, onClose]);
+
   async function doX(){
     setErr(""); setBusy("x");
-    try{ await signInWithX(); }
+    try{
+      await signInWithX();
+      // Redirect flow: browser navigates to X, then back to redirectTo (origin).
+      // On return the app re-initializes:
+      //   - initAuth() + onAuthChange => setAuthUser (updates TopBar)
+      //   - the [authUser] effect in App calls the existing getMyRoster(authUser.id) + getLineup(roster.id, GW)
+      // If Supabase sets the session in-page (no full nav), the effect above auto-closes this sheet.
+    }
     catch(e){ setErr(e?.message||"X sign-in failed"); }
     finally{ setBusy(null); }
   }
+  // Keep local display state in sync if the global authUser.wallet gets populated
+  // (e.g. pending wallet from previous sign was auto-linked on X login).
+  useEffect(() => {
+    if (authUser?.wallet && authUser.wallet !== wallet) {
+      setWallet(authUser.wallet);
+    }
+  }, [authUser?.wallet]);
+
   async function doWallet(){
     setErr(""); setBusy("wallet");
     try{
-      const a=await connectWallet();
-      if(a) setWallet(a);
-      else setErr(""); // mobile: navigating to Phantom's in-app browser…
+      const a = await connectWallet();
+      if (a) {
+        setWallet(a);
+        // When a real user (X login) already exists, connectWallet did:
+        //   provider.connect() + requestWalletSignature() (the ownership proof)
+        //   + UPDATE users.wallet in Supabase + setSessionUser({..., wallet})
+        // The onAuthChange listener updates authUser (new object ref) →
+        // the [authUser] effect in the main App component calls the existing
+        // getMyRoster(authUser.id) + getLineup(...) to load roster + lineup from server.
+      } else {
+        setErr(""); // mobile: we performed the correct Phantom ul/browse deep link;
+                    // once inside Phantom the injected provider will be available and
+                    // tapping "Connect Solana wallet" again will do connect + signMessage.
+      }
     }
-    catch(e){ setErr(e?.message||"Wallet connection failed"); }
+    catch(e){
+      setErr(e?.message || "Wallet connection + signature failed");
+    }
     finally{ setBusy(null); }
   }
   const shortW = wallet ? wallet.slice(0,4)+"…"+wallet.slice(-4) : null;
@@ -4077,6 +4118,10 @@ function StatsPlayers({mySet}){
   const [gw,setGw]=useState(null); // null = whole tournament
   const [rows,setRows]=useState(null); // null=loading
 
+  const nationScrollRef=useRef(null);
+  const [isDesktop,setIsDesktop]=useState(false);
+  const [thumb,setThumb]=useState({w:0,left:0});
+
   useEffect(()=>{
     let live=true;
     setRows(null);
@@ -4092,10 +4137,37 @@ function StatsPlayers({mySet}){
     return ()=>{live=false;};
   },[stat,nation,gw]);
 
+  // desktop = fine pointer (mouse) + sufficiently wide window (same pattern as StatsBracket)
+  useEffect(()=>{
+    const mq=window.matchMedia("(min-width:1024px) and (pointer:fine)");
+    const set=()=>setIsDesktop(mq.matches); set();
+    mq.addEventListener?.("change",set);
+    return ()=>mq.removeEventListener?.("change",set);
+  },[]);
+
   const view = useMemo(()=>{
     if(!rows) return null;
     return mine ? rows.filter(r=>mySet.has(r.player_id)||mySet.has(r.name)) : rows;
   },[rows,mine,mySet]);
+
+  function syncNationThumb(){
+    const el=nationScrollRef.current; if(!el) return;
+    const {scrollWidth,clientWidth,scrollLeft}=el;
+    if(scrollWidth<=clientWidth){ setThumb({w:100,left:0}); return; }
+    setThumb({ w:(clientWidth/scrollWidth)*100, left:(scrollLeft/scrollWidth)*100 });
+  }
+  useEffect(()=>{ syncNationThumb(); },[isDesktop]);
+
+  // drag the thumb → scroll the nations row
+  function onNationThumbDown(e){
+    e.preventDefault();
+    const el=nationScrollRef.current; if(!el) return;
+    const startX=e.clientX, startScroll=el.scrollLeft;
+    const ratio=el.scrollWidth/el.clientWidth;
+    function move(ev){ el.scrollLeft=startScroll+(ev.clientX-startX)*ratio; }
+    function up(){ window.removeEventListener("mousemove",move); window.removeEventListener("mouseup",up); }
+    window.addEventListener("mousemove",move); window.addEventListener("mouseup",up);
+  }
 
   const tabs=[{k:"goals",label:"Goals"},{k:"assists",label:"Assists"},{k:"cards",label:"Cards"}];
 
@@ -4119,7 +4191,8 @@ function StatsPlayers({mySet}){
           {nation!=="ALL"&&<button onClick={()=>setNation("ALL")} style={{fontSize:10.5,fontWeight:800,
             color:C.orangeDeep,background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"'Archivo',sans-serif"}}>✕ clear</button>}
         </div>
-        <div style={{display:"flex",gap:7,overflowX:"auto",paddingBottom:4}}>
+        <div ref={nationScrollRef} onScroll={syncNationThumb}
+          style={{display:"flex",gap:7,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
           <button onClick={()=>setNation("ALL")} style={{flexShrink:0,padding:"7px 14px",borderRadius:10,cursor:"pointer",
             border:`1.5px solid ${nation==="ALL"?C.ink:C.line}`,background:nation==="ALL"?C.ink:C.card,
             color:nation==="ALL"?"#fff":C.mute,fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:12.5}}>All</button>
@@ -4132,6 +4205,20 @@ function StatsPlayers({mySet}){
             </button>
           ))}
         </div>
+        {/* desktop-only draggable scrollbar (mobile uses natural swipe; same pattern as StatsBracket) */}
+        {isDesktop && thumb.w<100 && (
+          <div style={{height:10,margin:"2px 0 4px",borderRadius:6,background:C.line,position:"relative",cursor:"pointer"}}
+            onMouseDown={(e)=>{
+              const el=nationScrollRef.current; if(!el) return;
+              const rect=e.currentTarget.getBoundingClientRect();
+              const pct=(e.clientX-rect.left)/rect.width;
+              el.scrollLeft=pct*(el.scrollWidth-el.clientWidth);
+            }}>
+            <div onMouseDown={onNationThumbDown}
+              style={{position:"absolute",top:0,height:10,borderRadius:6,background:C.orange,
+                width:`${thumb.w}%`,left:`${thumb.left}%`,cursor:"grab"}}/>
+          </div>
+        )}
       </div>
 
       {/* list */}
