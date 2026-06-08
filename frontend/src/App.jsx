@@ -1491,6 +1491,7 @@ export default function App(){
   useEffect(()=>{
     // Detect we are returning from Supabase/X OAuth redirect (code or error in URL, or hash tokens).
     // This powers the "loading during return redirect" message. Does not affect the Sign in button.
+    console.log('[App] Page load - search:', window.location.search, 'hash:', window.location.hash);
     let isReturn = false;
     try {
       const u = new URL(window.location.href);
@@ -1509,7 +1510,8 @@ export default function App(){
     // This ensures that after the redirect back, SIGNED_IN / INITIAL_SESSION update the UI without delay.
     let supabaseSub = null;
     if (HAS_SUPABASE && supabase) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('[App direct] onAuthStateChange:', event, 'hasUser=', !!session?.user);
         // Use supabase.auth.onAuthStateChange to immediately update React authUser state (per requirements).
         if (session?.user) {
           const enriched = (typeof window !== 'undefined' && window.__FTB_USER) || null;
