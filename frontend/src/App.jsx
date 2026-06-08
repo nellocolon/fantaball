@@ -1499,6 +1499,8 @@ export default function App(){
     if (isReturn) {
       setAuthReturning(true);
       setAuthCallbackError("");
+      // Open the login sheet on return so the user sees clear feedback (loading or error)
+      setLoginOpen(true);
     }
 
     const unsubOnAuthChange = onAuthChange(u=>setAuthUser(u));
@@ -1756,7 +1758,7 @@ export default function App(){
       {shareOpen && <ShareModal squad={squad} captain={captain} vice={vice}
         teamName={teamName} jersey={jersey} onClose={()=>setShareOpen(false)}/>}
       {tab === "build" && showDexPopup && <DexPopup onClose={()=>setShowDexPopup(false)} />}
-      {loginOpen && <LoginSheet authUser={authUser} onClose={()=>setLoginOpen(false)}/>}
+      {loginOpen && <LoginSheet authUser={authUser} onClose={()=>setLoginOpen(false)} authReturning={authReturning} />}
       <Style/>
     </div>
     </PlayersContext.Provider>
@@ -1841,7 +1843,7 @@ function TopBar({authUser,onLogin}){
 }
 
 // ─── LOGIN SHEET ──────────────────────────────────────────────────────────
-function LoginSheet({authUser,onClose}){
+function LoginSheet({authUser,onClose, authReturning = false}){
   const [busy,setBusy]=useState(null); // "x" | "wallet" | null
   const [err,setErr]=useState("");
   const [wallet,setWallet]=useState(authUser?.wallet||null);
@@ -1919,11 +1921,17 @@ function LoginSheet({authUser,onClose}){
           <button onClick={onClose} style={S.iconBtn}><Icon name="x" size={18}/></button>
         </div>
 
-        <button onClick={doX} disabled={busy==="x"}
-          style={{...S.loginBtn,background:C.ink,color:"#fff",opacity:busy==="x"?0.6:1}}>
-          <Icon name="twitter" size={18}/>
-          {authUser?.handle ? `Connected as @${authUser.handle}` : (busy==="x"?"Opening X…":"Connect X")}
-        </button>
+        {authReturning ? (
+          <div style={{...S.loginBtn, background: C.card, color: C.ink, border: `1px solid ${C.line}`, justifyContent: 'center', cursor: 'default'}}>
+            Completing sign-in with X…
+          </div>
+        ) : (
+          <button onClick={doX} disabled={busy==="x"}
+            style={{...S.loginBtn,background:C.ink,color:"#fff",opacity:busy==="x"?0.6:1}}>
+            <Icon name="twitter" size={18}/>
+            {authUser?.handle ? `Connected as @${authUser.handle}` : (busy==="x"?"Opening X…":"Connect X")}
+          </button>
+        )}
 
         <button onClick={doWallet} disabled={busy==="wallet"}
           style={{...S.loginBtn,background:C.orange,color:"#fff",marginTop:10,opacity:busy==="wallet"?0.6:1}}>

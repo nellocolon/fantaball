@@ -74,7 +74,19 @@ async function ensureUserRow(authUser) {
   };
   const { data, error } = await supabase
     .from("users").upsert(payload, { onConflict: "id" }).select("id, x_handle, wallet").single();
-  if (error) { console.warn("ensureUserRow:", error.message); return null; }
+  if (error) {
+    console.warn("ensureUserRow users upsert failed (using minimal user):", error.message);
+    // Still return a basic user so the app treats the Supabase auth session as logged in.
+    // The "users" row can be created later (or by a trigger). Roster saves may create it.
+    const meta = authUser.user_metadata || {};
+    const handle = meta.user_name || meta.preferred_username || meta.name || null;
+    return {
+      id: authUser.id,
+      handle,
+      wallet: null,
+      rosterId: null,
+    };
+  }
   // find (or rely on) the user's roster id for lineup writes
   let rosterId = null;
   const { data: r } = await supabase
