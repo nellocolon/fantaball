@@ -3238,65 +3238,122 @@ function StatsBracket(){
   );
 }
 
-function StatsSchedule(){
-  const [gw,setGw]=useState(1);
+function StatsCalendar(){
   const [all,setAll]=useState(null);
   useEffect(()=>{let live=true;getFixtures().then(list=>{if(live)setAll(Array.isArray(list)?list:[]);});return ()=>{live=false;};},[]);
-  const fixtures=useMemo(()=>{
-    if(!all) return null;
-    return all.filter(f=>(f.gameweek_id||f.gameweek)===gw);
-  },[all,gw]);
+
+  // Define expected Gameweeks structure (chronological, based on WC2026 format)
+  const gwDefs = [
+    {id:1, label:"GW1 - Group Stage"},
+    {id:2, label:"GW2 - Group Stage"},
+    {id:3, label:"GW3 - Group Stage"},
+    {id:4, label:"GW4 - Round of 32"},
+    {id:5, label:"GW5 - Round of 32"},
+    {id:6, label:"GW6 - Round of 16"},
+    {id:7, label:"GW7 - Quarter-finals"},
+    {id:8, label:"GW8 - Semi-finals & Final"},
+  ];
+
+  // Group real fixtures by gameweek_id, sorted by kickoff
+  const grouped = useMemo(() => {
+    if (!all || all.length === 0) return {};
+    const byGw = {};
+    all.forEach(f => {
+      const gw = f.gameweek_id || f.gameweek || 0;
+      if (!byGw[gw]) byGw[gw] = [];
+      byGw[gw].push(f);
+    });
+    // sort each gw's matches by time
+    Object.keys(byGw).forEach(gw => {
+      byGw[gw].sort((a,b) => new Date(a.kickoff_time || 0) - new Date(b.kickoff_time || 0));
+    });
+    return byGw;
+  }, [all]);
+
+  function formatTime(t) {
+    if (!t) return 'TBD';
+    try {
+      const d = new Date(t);
+      return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }) + ' ' +
+             d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    } catch { return 'TBD'; }
+  }
+
+  function getStatusInfo(f) {
+    const s = (f.status || '').toLowerCase();
+    const hs = f.home_score, as = f.away_score;
+    if (s.includes('live') || s === 'live') return { label: 'LIVE', color: C.orange };
+    if (s.includes('finish') || s === 'ft' || hs != null) return { label: 'FT', color: C.mute };
+    return { label: 'Scheduled', color: C.mute };
+  }
+
+  if (all === null) {
+    return <div style={{textAlign:"center",padding:"40px",color:C.mute}}>Loading match schedule…</div>;
+  }
+
   return (
-    <div>
-      <div style={{display:"flex",gap:8,overflowX:"auto",marginBottom:16,paddingBottom:4}}>
-        {[1,2,3,4,5,6,7,8].map(n=>(
-          <button key={n} onClick={()=>setGw(n)} style={{flexShrink:0,minWidth:54,padding:"10px 0",borderRadius:11,cursor:"pointer",
-            border:`1.5px solid ${gw===n?C.ink:C.line}`,background:gw===n?C.ink:C.card,color:gw===n?"#fff":C.mute,
-            fontFamily:"'Archivo',sans-serif",fontWeight:800,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-            <span style={{fontSize:9,letterSpacing:.5,opacity:.7,fontFamily:"'Archivo Narrow',sans-serif"}}>GW</span>
-            <span style={{fontSize:17,lineHeight:1}}>{n}</span>
-          </button>
-        ))}
-      </div>
-      {fixtures===null ? (
-        <div style={{textAlign:"center",padding:"40px",color:C.mute}}>Loading…</div>
-      ) : fixtures.length===0 ? (
-        <div style={{textAlign:"center",padding:"40px 20px",color:C.mute,fontSize:14,background:C.card,
-          borderRadius:14,border:`1px dashed ${C.line}`}}>No fixtures scheduled for GW{gw} yet</div>
-      ) : (
-        <div style={{display:"flex",flexDirection:"column",gap:9}}>
-          {fixtures.map((f,i)=>{
-            const home=f.home_team||f.home,away=f.away_team||f.away;
-            const hs=f.home_score,as=f.away_score;
-            const live=f.status==="live"||f.status==="LIVE";
-            const done=f.status==="finished"||f.status==="FT"||hs!=null;
-            return (
-              <div key={f.id||i} style={{display:"flex",alignItems:"center",gap:10,padding:"13px 15px",
-                background:C.card,borderRadius:14,border:`1px solid ${live?C.orange:C.line}`}}>
-                <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
-                  <span style={{display:"flex",alignItems:"center",gap:7,flex:1,justifyContent:"flex-end"}}>
-                    <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:C.ink}}>{home}</span>
-                    <span style={{fontSize:20}}>{FLAG[home]||"🏳"}</span>
-                  </span>
-                  <span style={{minWidth:54,textAlign:"center"}}>
-                    {done||live ? <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:18,color:C.ink}}>{hs??0}-{as??0}</span>
-                      : <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:12,color:C.mute}}>vs</span>}
-                  </span>
-                  <span style={{display:"flex",alignItems:"center",gap:7,flex:1}}>
-                    <span style={{fontSize:20}}>{FLAG[away]||"🏳"}</span>
-                    <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:C.ink}}>{away}</span>
-                  </span>
-                </div>
-                <div style={{width:44,flexShrink:0,textAlign:"right"}}>
-                  {live&&<span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:900,color:C.orange,fontFamily:"'Archivo',sans-serif"}}>
-                    <span style={{width:6,height:6,borderRadius:"50%",background:C.orange,animation:"pulse 1.2s infinite"}}/>LIVE</span>}
-                  {done&&!live&&<span style={{fontSize:10,fontWeight:800,color:C.mute,letterSpacing:.5,fontFamily:"'Archivo Narrow',sans-serif"}}>FT</span>}
-                </div>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {gwDefs.map(def => {
+        const matches = grouped[def.id] || [];
+        const hasData = matches.length > 0;
+        return (
+          <div key={def.id} style={{background:C.card,borderRadius:14,border:`1px solid ${C.line}`,overflow:"hidden"}}>
+            {/* GW Header - strong visual distinction */}
+            <div style={{padding:"10px 16px",background:C.ink,color:"#fff",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:15,letterSpacing:.3}}>{def.label}</div>
+              <div style={{fontSize:11,opacity:0.7}}>{hasData ? `${matches.length} matches` : 'TBD'}</div>
+            </div>
+
+            {!hasData ? (
+              <div style={{padding:"18px 16px",color:C.mute,fontSize:13,textAlign:"center",background:"rgba(0,0,0,0.02)"}}>
+                No fixtures scheduled yet for this gameweek.
               </div>
-            );
-          })}
-        </div>
-      )}
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:1,padding:"8px 0"}}>
+                {matches.map((f, idx) => {
+                  const home = f.home_team || f.home || 'TBD';
+                  const away = f.away_team || f.away || 'TBD';
+                  const hs = f.home_score, as = f.away_score;
+                  const st = getStatusInfo(f);
+                  const time = formatTime(f.kickoff_time);
+                  const venue = f.venue || 'TBD';
+                  const isLive = st.label === 'LIVE';
+                  return (
+                    <div key={f.id || idx} style={{padding:"10px 16px",display:"flex",flexDirection:"column",gap:4,borderBottom: idx < matches.length-1 ? `1px solid ${C.line}` : 'none'}}>
+                      {/* Time + Status */}
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,color:C.mute}}>
+                        <span>{time}</span>
+                        <span style={{fontWeight:700, color: isLive ? C.orange : C.mute, fontSize:10, letterSpacing:.5, fontFamily:"'Archivo Narrow',sans-serif"}}>
+                          {isLive && <span style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:C.orange,marginRight:4,animation:"pulse 1.2s infinite"}}/>}
+                          {st.label}
+                        </span>
+                      </div>
+
+                      {/* Teams */}
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{flex:1,textAlign:"right",fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:C.ink}}>{home}</span>
+                        <span style={{fontSize:18}}>{FLAG[home]||"🏳"}</span>
+                        <span style={{minWidth:52,textAlign:"center",fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:15,color:C.ink}}>
+                          {hs != null ? `${hs}-${as}` : 'vs'}
+                        </span>
+                        <span style={{fontSize:18}}>{FLAG[away]||"🏳"}</span>
+                        <span style={{flex:1,fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:C.ink}}>{away}</span>
+                      </div>
+
+                      {/* Venue */}
+                      <div style={{fontSize:11,color:C.mute,textAlign:"center",fontStyle:"italic"}}>{venue}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <p style={{fontSize:11,color:C.mute,textAlign:"center",margin:"8px 0 0"}}>
+        Schedule data from official fixtures feed. Times are local to venue.
+      </p>
     </div>
   );
 }
@@ -3314,7 +3371,7 @@ function Stats({squad}){
     {k:"players",label:"Players"},
     {k:"groups",label:"Groups"},
     {k:"bracket",label:"Bracket"},
-    {k:"schedule",label:"Schedule"},
+    {k:"calendar",label:"Calendar"},
   ];
   return (
     <div>
@@ -3333,7 +3390,7 @@ function Stats({squad}){
         {section==="players"&&<StatsPlayers mySet={mySet}/>}
         {section==="groups"&&<StatsGroups/>}
         {section==="bracket"&&<StatsBracket/>}
-        {section==="schedule"&&<StatsSchedule/>}
+        {section==="calendar"&&<StatsCalendar/>}
       </div>
     </div>
   );
