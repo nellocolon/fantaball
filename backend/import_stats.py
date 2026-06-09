@@ -21,6 +21,23 @@ import sys
 import time
 import requests
 
+# Self-contained .env loader (run from anywhere)
+def _load_dotenv():
+    for cand in (
+        os.path.join(os.getcwd(), "backend", ".env"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"),
+        ".env",
+    ):
+        if os.path.isfile(cand):
+            with open(cand, encoding="utf-8") as fh:
+                for raw in fh:
+                    line = raw.strip()
+                    if not line or line.startswith("#") or "=" not in line: continue
+                    k, _, v = line.partition("=")
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            break
+_load_dotenv()
+
 API_KEY = os.environ.get("API_FOOTBALL_KEY")
 SUPA_URL = os.environ.get("SUPABASE_URL")
 SUPA_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY")

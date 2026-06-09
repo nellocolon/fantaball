@@ -23,9 +23,27 @@ from __future__ import annotations
 import os, sys, argparse, requests
 from scoring import score_player, score_user_gameweek
 
+# Self-contained .env loader (supports running from root or backend/ dir)
+def _load_dotenv():
+    for cand in (
+        os.path.join(os.getcwd(), "backend", ".env"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"),
+        ".env",
+    ):
+        if os.path.isfile(cand):
+            with open(cand, encoding="utf-8") as fh:
+                for raw in fh:
+                    line = raw.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, _, v = line.partition("=")
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            break
+_load_dotenv()
+
 API_KEY  = os.environ.get("API_FOOTBALL_KEY")
 SUPA_URL = os.environ.get("SUPABASE_URL")
-SUPA_KEY = os.environ.get("SUPABASE_KEY")
+SUPA_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
 API_BASE = "https://v3.football.api-sports.io"
 HDR_API  = {"x-apisports-key": API_KEY or ""}
