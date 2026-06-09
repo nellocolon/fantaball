@@ -8,9 +8,12 @@ Python: scoring engine, gameweek jobs, and the public API.
 - `import_fixtures.py` — pulls the 104 World Cup fixtures from API-Football into `fixtures`.
 - `public_api.py` — **FastAPI** public read API (no auth): GO bounty verification + `/public/stream/state` for the overlay. Boots and serves; reads Supabase via REST.
 
-## Env (`.env.example`)
-- `SUPABASE_URL`, `SUPABASE_KEY` — Supabase REST. Use **service_role** for the write jobs (they bypass RLS), **anon** is fine for `public_api`.
-- `API_FOOTBALL_KEY` — only for the fixtures/scoring jobs.
+## Environment variables
+- `SUPABASE_URL` — Supabase REST URL (`https://<your-project>.supabase.co`)
+- `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_KEY`) — Use the **service_role** key for write jobs (`calc_gameweek.py`, imports, etc.) because they need to bypass RLS. The **anon** key is sufficient for `public_api.py`.
+- `API_FOOTBALL_KEY` — only for the fixtures/scoring jobs that call the external football API.
+
+For local development the Python scripts load variables from a `backend/.env` file (or from the environment).
 
 ## Run locally
 ```bash

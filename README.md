@@ -180,7 +180,6 @@ fantaball/
 │   ├── requirements.txt
 │   ├── Procfile
 │   ├── runtime.txt
-│   ├── .env.example
 │   └── README.md
 ├── database/            Supabase Postgres setup (run in order)
 │   ├── 01_schema.sql
@@ -217,6 +216,9 @@ npm run build               # production build → dist/
 ```bash
 cd backend
 pip install -r requirements.txt
+
+# Set env vars (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY/SUPABASE_KEY + API_FOOTBALL_KEY)
+# or place them in a backend/.env file (loaded automatically by the scripts)
 uvicorn public_api:app --reload --port 8000   # http://localhost:8000/health
 python scoring.py                              # run the scoring engine tests
 ```
@@ -244,18 +246,22 @@ Sign-in uses Supabase Auth. Enable the **X (Twitter)** provider in Supabase → 
 
 ## Environment variables
 
-**Frontend** (Netlify → Environment variables):
-| Variable | Value |
-|----------|-------|
-| `VITE_SUPABASE_URL` | Supabase Project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase **anon** public key (not the service role) |
+**Frontend** (set in Netlify → Environment variables, or in `frontend/.env` for local dev — only `VITE_*` variables are exposed to the browser):
+| Variable                  | Description |
+|---------------------------|-------------|
+| `VITE_SUPABASE_URL`       | Supabase Project URL |
+| `VITE_SUPABASE_ANON_KEY`  | Supabase **anon** public key (**never** the service role key) |
+| `VITE_API_URL`            | Base URL of the public backend (e.g. the Railway FastAPI). Optional for some read-only features. |
+| `VITE_SITE_URL`           | Your production site URL (e.g. `https://fantaball.tech`). Strongly recommended for reliable X/Twitter OAuth redirects. |
 
-**Backend** (Railway → Variables):
-| Variable | Value |
-|----------|-------|
-| `SUPABASE_URL` | Supabase REST URL |
-| `SUPABASE_KEY` | service role for write jobs; anon is fine for the read API |
-| `API_FOOTBALL_KEY` | only for the fixtures/scoring jobs |
+**Backend** (Railway variables, or `backend/.env` locally):
+| Variable                        | Description |
+|---------------------------------|-------------|
+| `SUPABASE_URL`                  | Supabase REST URL |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Service role key (recommended for write jobs). `SUPABASE_KEY` is also accepted as fallback. |
+| `API_FOOTBALL_KEY`              | API-Football (api-sports.io) key. Only required by scoring/fixtures/stats jobs. |
+
+> **Important**: Never put backend-only variables (`SUPABASE_*`, `API_FOOTBALL_KEY`) into the frontend/Netlify environment. See `netlify.toml` for details.
 
 ---
 
