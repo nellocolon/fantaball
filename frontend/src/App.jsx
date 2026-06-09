@@ -1834,7 +1834,7 @@ function TopBar({authUser,onLogin}){
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <div style={S.poolChip}>
-          <span style={S.poolDot}/>
+          <img src="/solana-logo.jpg" alt="Solana" style={{width:14,height:14,borderRadius:"50%",objectFit:"cover",flexShrink:0,border:"1px solid rgba(255,255,255,0.25)"}}/>
           <span style={{fontWeight:800,fontSize:13}}>◎312.4 SOL</span>
         </div>
         <button onClick={onLogin} style={S.loginChip}>
@@ -3367,8 +3367,14 @@ function Token(){
         <div style={{position:"absolute",top:-30,right:-30,width:140,height:140,borderRadius:"50%",
           background:C.orange,opacity:.18}}/>
         <div style={{position:"relative",zIndex:1}}>
-          <div style={{fontSize:11,color:"#ffffff99",letterSpacing:2.5,fontWeight:700}}>LIVE PRIZE POOL</div>
-          <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:54,color:"#fff",lineHeight:1,marginTop:4}}>◎312.4 <span style={{fontSize:24}}>SOL</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <img src="/solana-logo.jpg" alt="Solana" style={{width:22,height:22,borderRadius:"50%",objectFit:"cover",border:"1px solid rgba(255,255,255,0.2)",flexShrink:0}}/>
+            <div style={{fontSize:11,color:"#ffffff99",letterSpacing:2.5,fontWeight:700}}>LIVE PRIZE POOL</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginTop:4}}>
+            <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:54,color:"#fff",lineHeight:1}}>◎312.4 <span style={{fontSize:24}}>SOL</span></div>
+            <img src="/solana-logo.jpg" alt="Solana" style={{width:48,height:48,borderRadius:"50%",objectFit:"cover",border:"2px solid rgba(255,255,255,0.18)",flexShrink:0,boxShadow:"0 4px 12px rgba(0,0,0,0.35)"}}/>
+          </div>
           <div style={{fontSize:13,color:"#ffffffcc",marginTop:8,lineHeight:1.5}}>Grows with every trade · paid in SOL to top 100</div>
           <div style={{height:6,background:"#ffffff22",borderRadius:6,overflow:"hidden",marginTop:14}}>
             <div style={{height:"100%",width:"71%",background:C.orange,borderRadius:6}}/>
