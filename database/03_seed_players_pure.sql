@@ -576,7 +576,7 @@ insert into players(id,slug,team,number,position,name,dob,age,club,club_country,
 insert into players(id,slug,team,number,position,name,dob,age,club,club_country,height_cm,price,api_id) values (6009, 'auto-6009', 'ARG', 9, 'FW', 'J. Álvarez', NULL, NULL, 'Atletico Madrid', '', NULL, 12.0, 6009);
 insert into players(id,slug,team,number,position,name,dob,age,club,club_country,height_cm,price,api_id) values (350037, 'auto-350037', 'ARG', 18, 'FW', 'N. Paz', NULL, NULL, 'Como', '', NULL, 12.0, 350037);
 insert into players(id,slug,team,number,position,name,dob,age,club,club_country,height_cm,price,api_id) values (295513, 'auto-295513', 'ARG', 21, 'FW', 'J. López', NULL, NULL, 'Palmeiras', '', NULL, 76.0, 295513);
-insert into players(id,slug,team,number,position,name,dob,age,club,club_country,height_cm,price,api_id) values (217, 'auto-217', 'ARG', 22, 'FW', 'Lautaro Martínez', NULL, NULL, 'Inter', '', NULL, 12.0, 217);
+insert into players(id,slug,team,number,position,name,dob,age,club,club_country,height_cm,price,api_id) values (217, 'auto-217', 'ARG', 22, 'FW', 'Lautaro Martínez', NULL, NULL, 'Inter', '', NULL, 78.0, 217);
 insert into players(id,slug,team,number,position,name,dob,age,club,club_country,height_cm,price,api_id) values (154, 'auto-154', 'ARG', 10, 'FW', 'L. Messi', NULL, NULL, 'Inter Miami', '', NULL, 12.0, 154);
 insert into players(id,slug,team,number,position,name,dob,age,club,club_country,height_cm,price,api_id) values (323935, 'auto-323935', 'ARG', 17, 'MF', 'G. Simeone', NULL, NULL, 'Argentina', '', NULL, 137.5, 323935);
 insert into players(id,slug,team,number,position,name,dob,age,club,club_country,height_cm,price,api_id) values (369, 'auto-369', 'POR', 1, 'GK', 'Diogo Costa', NULL, NULL, 'FC Porto', '', NULL, 12.0, 369);

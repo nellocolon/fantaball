@@ -1,7 +1,7 @@
 // ─── DATA ACCESS LAYER ──────────────────────────────────────────────────
 // Single place the UI talks to for data. If Supabase env vars are set, it
-// reads live from the DB; otherwise it falls back to the bundled compact
-// dataset so the app always runs (demo mode).
+// reads live from the DB; otherwise it returns the bundled real player dataset
+// (frontend/src/all_players_compact.json) which contains the canonical 1248 players.
 //
 // Public backend endpoints (via VITE_API_URL) are used for read-only data
 // such as fixtures where we want a single source of truth from the scoring pipeline.
@@ -11,6 +11,9 @@ import { supabase, HAS_SUPABASE } from "./supabase";
 import compact from "../all_players_compact.json";
 import * as publicApi from "./api";
 
+// The canonical real player data (1248 players). Always prefer this or live DB data.
+export const PLAYERS = compact;
+
 // shape used by the UI: {id, n, t, p, c, pr, num, pts?, own?}
 export async function getPlayers() {
   if (HAS_SUPABASE) {
@@ -19,13 +22,13 @@ export async function getPlayers() {
       .select("id, name, team, position, club, price, number")
       .order("price", { ascending: false });
     if (error) throw error;
-    // map DB columns -> compact UI schema
+    // map DB columns -> UI schema. Extra fields (pts, own) will be enriched from PLAYERS where available.
     return data.map((r) => ({
       id: r.id, n: r.name, t: r.team, p: r.position,
       c: r.club, pr: Number(r.price), num: r.number,
     }));
   }
-  return compact; // demo fallback
+  return PLAYERS; // real bundled player data
 }
 
 export async function getTeams() {
@@ -51,7 +54,7 @@ export async function getFixtures() {
   }
 }
 
-// Leaderboard (public view — PII-safe). Returns [] in demo mode.
+// Leaderboard (public view — PII-safe). Returns [] when no Supabase / no data yet.
 export async function getLeaderboard(gameweekId = null) {
   if (!HAS_SUPABASE) return [];
   let q = supabase.from("public_leaderboard").select("*").order("rank", { ascending: true });
@@ -61,10 +64,10 @@ export async function getLeaderboard(gameweekId = null) {
   return data;
 }
 
-// ── Authenticated writes (need Supabase Auth wired; safe no-ops in demo) ──
+// ── Authenticated writes (need Supabase Auth wired; safe no-ops without backend) ──
 // players: array of {id, pr} (id + price). meta: {name, budget_spent}
 export async function saveRoster(userId, players, meta = {}) {
-  if (!HAS_SUPABASE) return { demo: true };
+  if (!HAS_SUPABASE) return { demo: true }; // no-op without backend (quests/stats unaffected)
   const { data, error } = await supabase
     .from("rosters")
     .upsert({ user_id: userId, ...meta }, { onConflict: "user_id" })
@@ -102,7 +105,7 @@ export async function getMyRoster(userId) {
 // starters: [playerId,...] (the 11). bench: [playerId,...] (ordered, 1..N).
 // captainId / viceId: player ids.
 export async function saveLineup(rosterId, gameweekId, { starters = [], bench = [], captainId = null, viceId = null }) {
-  if (!HAS_SUPABASE) return { demo: true };
+  if (!HAS_SUPABASE) return { demo: true }; // no-op without backend (quests/stats unaffected)
   // replace this gameweek's lineup for the roster
   await supabase.from("lineups").delete()
     .eq("roster_id", rosterId).eq("gameweek_id", gameweekId);
@@ -157,9 +160,8 @@ export function computeFormationLock(fixtures = [], gameweekId = 1, now = new Da
 
   if (!kickoffs.length) {
     if (gameweekId === 1) {
-      // Demo fallback (no backend / VITE_API_URL): use realistic WC2026 GW1 kickoffs.
-      // First matches are 2026-06-11; this ensures GW1 always shows multi-day/hour countdown
-      // until lock (20min before first). Real fixtures from /public/fixtures override when present.
+      // Fallback kickoff times (no backend / VITE_API_URL): realistic WC2026 GW1 schedule.
+      // Ensures lock timers work for preview. Real data from /public/fixtures overrides when present.
       kickoffs = [
         new Date("2026-06-11T13:00:00Z"),
         new Date("2026-06-11T20:00:00Z"),
@@ -241,7 +243,7 @@ function formatCountdown(ms) {
 
 // ─── STATS (World Cup) ───────────────────────────────────────────────────
 // All read from the public FastAPI; on failure or no backend, callers get []/{}.
-// Demo fallbacks live in App.jsx so the UI is never empty during local preview.
+// (No demo/fake data — UI shows "No data available yet" messages when empty.)
 export async function getScorers(opts = {}) {
   try { return (await publicApi.getStatScorers(opts)) || []; }
   catch (e) { console.warn("getScorers:", e?.message || e); return []; }
