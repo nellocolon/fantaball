@@ -1517,17 +1517,10 @@ function prizePctForRank(rank){
   for(const b of PRIZE_CURVE){ if(rank<=b.upTo) return b.pct; }
   return 0;
 }
-// potential winnings in SOL for a given rank, given the live pool total
-function potentialWin(rank,pool){
-  if(rank>100||!pool) return 0;
-  return +(pool*prizePctForRank(rank)/100).toFixed(2);
-}
-
 function Ranks({setTab}){
   const [board,setBoard]=useState([]);
   const [weekBoard,setWeekBoard]=useState([]);
   const [scope,setScope]=useState("overall"); // overall | week
-  const [pool,setPool]=useState(312.4);        // live prize pool (SOL) — placeholder value until live data
   const [showTable,setShowTable]=useState(false); // top-100 how-it-works modal
   useEffect(()=>{
     let alive=true;
@@ -1578,7 +1571,7 @@ function Ranks({setTab}){
             <img src="/solana-logo.jpg" alt="Solana" style={{width:28,height:28,borderRadius:"50%",objectFit:"cover",border:"1px solid rgba(0,0,0,0.1)",flexShrink:0}}/>
             <div>
               <div style={{fontSize:10,color:C.mute,letterSpacing:1.5,fontWeight:700}}>LIVE PRIZE POOL</div>
-              <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:26,color:C.ink}}>{pool}</div>
+              <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:20,color:C.ink}}>Live</div>
             </div>
           </div>
           <div style={{fontSize:11,color:C.orangeDeep,fontWeight:700,background:C.orangeSoft,
@@ -1594,7 +1587,7 @@ function Ranks({setTab}){
             <Icon name="chevron" size={16}/>
           </span>
         </button>
-        {showTable && <PrizeTableInline pool={pool} board={board}/>}
+        {showTable && <PrizeTableInline board={board}/>}
       </div>
 
       <div style={{padding:"0 16px"}}>
@@ -1602,7 +1595,10 @@ function Ranks({setTab}){
           <button onClick={()=>setScope("overall")} style={{...S.scopeBtn,...(scope==="overall"?S.scopeBtnOn:{})}}>Overall</button>
           <button onClick={()=>setScope("week")} style={{...S.scopeBtn,...(scope==="week"?S.scopeBtnOn:{})}}>This week</button>
         </div>
-        <div style={S.sectionLabel}>{scope==="overall"?"GLOBAL TOP MANAGERS":"THIS MATCHDAY'S BEST"}</div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <img src="/solana-logo.jpg" alt="Solana" style={{width:16,height:16,borderRadius:"50%",objectFit:"cover",border:"1px solid rgba(0,0,0,0.1)"}}/>
+          <span style={S.sectionLabel}>{scope==="overall"?"GLOBAL TOP MANAGERS":"THIS MATCHDAY'S BEST"}</span>
+        </div>
         {shown.length === 0 ? (
           <div style={{padding:"20px",textAlign:"center",color:C.mute,fontSize:13}}>
             No data available yet — leaderboard will appear when the tournament starts.
@@ -1634,7 +1630,7 @@ function Ranks({setTab}){
               <div style={{textAlign:"right",flexShrink:0}}>
                 <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:15,color:C.ink}}>{r.pts}</div>
                 {scope==="overall"
-                  ? <div style={{fontSize:11,fontWeight:700,color:C.orangeDeep}}>◎{potentialWin(r.rank,pool)}</div>
+                  ? <div style={{fontSize:11,fontWeight:700,color:C.mute}}>—</div>
                   : <div style={{fontSize:10,fontWeight:700,color:C.mute,letterSpacing:.3}}>this week</div>}
               </div>
             </div>
@@ -1662,18 +1658,25 @@ function Ranks({setTab}){
 }
 
 // ─── PRIZE TABLE (inline expand under "How it works") ──
-function PrizeTableInline({pool,board}){
+function PrizeTableInline({board}){
   const nameByRank={}; board.forEach(r=>{nameByRank[r.rank]=r.name;});
+  // Fixed example potentials (no fake live pool value)
+  const exampleWins = [41,28,19,13,3,1.5];
   const rows=Array.from({length:100},(_,i)=>{
     const rank=i+1;
-    return { rank, name:nameByRank[rank]||`Rank ${rank}`, pct:prizePctForRank(rank), win:potentialWin(rank,pool) };
+    const win = rank<=3 ? exampleWins[rank-1] : (rank<=10 ? 13 : (rank<=30 ? 3 : (rank<=100 ? 1.5 : 0)));
+    return { rank, name:nameByRank[rank]||`Rank ${rank}`, pct:prizePctForRank(rank), win };
   });
   return (
     <div style={{...S.tokenStat,padding:"14px 16px",marginTop:8}}>
       <p style={{margin:"0 0 12px",fontSize:12.5,color:C.mute,lineHeight:1.5}}>
-        The top 100 share the live pool of <b style={{color:C.ink}}>◎{pool}</b>. Each position earns a fixed
+        The top 100 share the live pool. Each position earns a fixed
         share of the pool — payouts grow as the pool grows. Figures update live.
       </p>
+      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+        <img src="/solana-logo.jpg" alt="Solana" style={{width:14,height:14,borderRadius:"50%",objectFit:"cover"}}/>
+        <span style={{fontSize:10,fontWeight:800,color:C.mute,letterSpacing:.5,fontFamily:"'Archivo Narrow',sans-serif"}}>TOP 100 PRIZE DISTRIBUTION</span>
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"36px 1fr 56px 78px",gap:4,padding:"8px 10px",
         borderBottom:`1px solid ${C.line}`,fontSize:10,fontWeight:800,color:C.mute,letterSpacing:.5,
         fontFamily:"'Archivo Narrow',sans-serif",textAlign:"right"}}>
@@ -2000,7 +2003,8 @@ function Quests(){
               </div>
               <div style={{textAlign:"right",flexShrink:0}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6}}>
-                  <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:22,color:C.orange,lineHeight:1}}>◎{q.reward}</div>
+                  <img src="/solana-logo.jpg" alt="Solana" style={{width:18,height:18,borderRadius:"50%",objectFit:"cover",border:"1px solid rgba(0,0,0,0.1)",flexShrink:0}}/>
+                  <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:22,color:C.orange,lineHeight:1}}>{q.reward}</div>
                 </div>
                 <div style={{fontSize:10,color:C.mute,marginTop:2}}>1 winner</div>
               </div>
@@ -2086,7 +2090,7 @@ function Token(){
     {l:"MARKET CAP",v:"$284K",s:"fully diluted"},
     {l:"HOLDERS",v:"1,847",s:"+23 today"},
     {l:"VOLUME 24H",v:"$41.2K",s:"Pump.fun"},
-    {l:"FEES TO POOL",v:"◎312",s:"60% of fees"},
+    {l:"FEES TO POOL",v:"LIVE",s:"60% of fees"},
   ];
   const feeSplit=[
     {pct:60,label:"PRIZE POOL",sub:"top 100 in SOL",color:C.orange},
@@ -2100,10 +2104,8 @@ function Token(){
           background:C.orange,opacity:.18}}/>
         <div style={{position:"relative",zIndex:1}}>
           <div style={{fontSize:11,color:"#ffffff99",letterSpacing:2.5,fontWeight:700}}>LIVE PRIZE POOL</div>
-          <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:54,color:"#fff",lineHeight:1,marginTop:4}}>312.4</div>
+          <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:36,color:"#fff",lineHeight:1,marginTop:4}}>Prize Pool</div>
           <div style={{fontSize:13,color:"#ffffffcc",marginTop:8,lineHeight:1.5}}>Grows with every trade · paid in SOL to top 100</div>
-          {/* Large Solana logo as section marker (right side, not next to the number) */}
-          <img src="/solana-logo.jpg" alt="Solana" style={{position:"absolute",top:8,right:8,width:56,height:56,borderRadius:"50%",objectFit:"cover",border:"2px solid rgba(255,255,255,0.18)",boxShadow:"0 6px 18px rgba(0,0,0,0.4)",opacity:0.9}}/>
           <div style={{height:6,background:"#ffffff22",borderRadius:6,overflow:"hidden",marginTop:14}}>
             <div style={{height:"100%",width:"71%",background:C.orange,borderRadius:6}}/>
           </div>
@@ -2182,7 +2184,10 @@ function Token(){
         {stats.map(({l,v,s})=>(
           <div key={l} style={S.tokenStat}>
             <div style={S.miniLabel}>{l}</div>
-            <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:22,color:C.ink,marginTop:4}}>{v}</div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              {l.includes("FEES") && <img src="/solana-logo.jpg" alt="Solana" style={{width:24,height:24,borderRadius:"50%",objectFit:"cover",border:"1px solid rgba(0,0,0,0.1)",flexShrink:0}}/>}
+              <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:22,color:C.ink,marginTop:4}}>{v}</div>
+            </div>
             <div style={{fontSize:11,color:C.mute,marginTop:2}}>{s}</div>
           </div>
         ))}
@@ -2328,9 +2333,8 @@ function About({setTab}){
 
       {/* STAT STRIP */}
       <div style={S.statStrip}>
-        {[["48","NATIONS"],["1,248","PLAYERS"],["312","LIVE POOL"],["30+","YRS TRADITION"]].map(([n,l],i)=>(
+        {[["48","NATIONS"],["1,248","PLAYERS"],["LIVE","PRIZE POOL"],["30+","YRS TRADITION"]].map(([n,l],i)=>(
           <div key={l} style={{...S.statStripItem,borderRight:i<3?`1px solid ${C.line}`:"none"}}>
-            {l==="LIVE POOL" && <img src="/solana-logo.jpg" alt="Solana" style={{width:16,height:16,borderRadius:"50%",objectFit:"cover",margin:"0 auto 2px",display:"block",border:"1px solid rgba(0,0,0,0.1)"}}/>}
             <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:22,color:C.ink}}>{n}</div>
             <div style={{fontSize:9,color:C.mute,letterSpacing:1,fontWeight:700,marginTop:2}}>{l}</div>
           </div>
