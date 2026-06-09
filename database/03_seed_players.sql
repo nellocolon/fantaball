@@ -1,4 +1,57 @@
 -- Fantaball WC2026 players — API-Football IDs + Fantaclub prices ×2.22
+
+-- Ensure teams exist (idempotent - safe to re-run)
+INSERT INTO teams(code, country, coach, coach_nationality) VALUES
+  ('BEL', 'Belgium', '', ''),
+  ('FRA', 'France', '', ''),
+  ('CRO', 'Croatia', '', ''),
+  ('SWE', 'Sweden', '', ''),
+  ('BRA', 'Brazil', '', ''),
+  ('URU', 'Uruguay', '', ''),
+  ('COL', 'Colombia', '', ''),
+  ('ESP', 'Spain', '', ''),
+  ('ENG', 'England', '', ''),
+  ('PAN', 'Panama', '', ''),
+  ('JPN', 'Japan', '', ''),
+  ('SEN', 'Senegal', '', ''),
+  ('SUI', 'Switzerland', '', ''),
+  ('MEX', 'Mexico', '', ''),
+  ('KOR', 'South Korea', '', ''),
+  ('AUS', 'Australia', '', ''),
+  ('IRN', 'Iran', '', ''),
+  ('KSA', 'Saudi Arabia', '', ''),
+  ('GER', 'Germany', '', ''),
+  ('ARG', 'Argentina', '', ''),
+  ('POR', 'Portugal', '', ''),
+  ('TUN', 'Tunisia', '', ''),
+  ('MAR', 'Morocco', '', ''),
+  ('EGY', 'Egypt', '', ''),
+  ('CZE', 'Czech Republic', '', ''),
+  ('AUT', 'Austria', '', ''),
+  ('TUR', 'Türkiye', '', ''),
+  ('NOR', 'Norway', '', ''),
+  ('SCO', 'Scotland', '', ''),
+  ('BIH', 'Bosnia & Herzegovina', '', ''),
+  ('NED', 'Netherlands', '', ''),
+  ('CIV', 'Ivory Coast', '', ''),
+  ('GHA', 'Ghana', '', ''),
+  ('CGO', 'Congo DR', '', ''),
+  ('RSA', 'South Africa', '', ''),
+  ('ALG', 'Algeria', '', ''),
+  ('CPV', 'Cape Verde Islands', '', ''),
+  ('JOR', 'Jordan', '', ''),
+  ('IRQ', 'Iraq', '', ''),
+  ('UZB', 'Uzbekistan', '', ''),
+  ('QAT', 'Qatar', '', ''),
+  ('PAR', 'Paraguay', '', ''),
+  ('ECU', 'Ecuador', '', ''),
+  ('USA', 'USA', '', ''),
+  ('HAI', 'Haiti', '', ''),
+  ('NZL', 'New Zealand', '', ''),
+  ('CAN', 'Canada', '', ''),
+  ('CUR', 'Curaçao', '', '')
+ON CONFLICT (code) DO NOTHING;
+
 TRUNCATE players CASCADE;
 INSERT INTO players(id,slug,team,number,position,name,price) VALUES (730, 'bel-courtois-730', 'BEL', 1, 'GK', 'T. COURTOIS', 33.0) ON CONFLICT (id) DO UPDATE SET price=EXCLUDED.price, name=EXCLUDED.name, team=EXCLUDED.team, position=EXCLUDED.position, number=EXCLUDED.number, slug=EXCLUDED.slug;
 INSERT INTO players(id,slug,team,number,position,name,price) VALUES (162511, 'bel-lammens-162511', 'BEL', 12, 'GK', 'S. LAMMENS', 3.0) ON CONFLICT (id) DO UPDATE SET price=EXCLUDED.price, name=EXCLUDED.name, team=EXCLUDED.team, position=EXCLUDED.position, number=EXCLUDED.number, slug=EXCLUDED.slug;
