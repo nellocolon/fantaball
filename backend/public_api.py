@@ -570,8 +570,10 @@ def create_roster(body: RosterBody, jwt_payload: dict = Depends(require_user)):
         )
         roster_id = rows[0]["id"]
 
-    # ── 8. Insert the 16 roster_players ──────────────────────────────────
-    supa_insert("roster_players", [
+    # ── 8. Upsert the 16 roster_players ─────────────────────────────────
+    # Upsert on (roster_id, player_id, active) so that concurrent calls
+    # (useEffect + SAVE button) don't crash with a duplicate-key 502.
+    player_rows = [
         {
             "roster_id": roster_id,
             "player_id": pid,
@@ -580,7 +582,18 @@ def create_roster(body: RosterBody, jwt_payload: dict = Depends(require_user)):
             "active": True,
         }
         for pid in body.players
-    ])
+    ]
+    h_ups = {**HDR, "Content-Type": "application/json",
+             "Prefer": "resolution=merge-duplicates,return=minimal"}
+    r_ups = requests.post(
+        f"{SUPA_URL}/rest/v1/roster_players?on_conflict=roster_id,player_id,active",
+        headers=h_ups, json=player_rows, timeout=30,
+    )
+    if r_ups.status_code >= 300:
+        raise HTTPException(
+            409 if r_ups.status_code == 409 else 502,
+            f"Errore salvataggio giocatori ({r_ups.status_code}): {r_ups.text[:200]}",
+        )
 
     return {
         "roster_id": roster_id,
