@@ -47,6 +47,16 @@ HDR = {
     "Authorization": f"Bearer {SUPA_KEY or ''}",
 }
 
+# ── On-chain env vars (set on Railway once the token is live) ─────────────────
+FANTABALL_MINT      = os.environ.get("FANTABALL_MINT")       # SPL token mint address
+HELIUS_API_KEY      = os.environ.get("HELIUS_API_KEY")       # Helius RPC key
+POOL_WALLET_ADDRESS = os.environ.get("POOL_WALLET_ADDRESS")  # Prize-pool wallet (SOL balance = locked)
+
+# Simple in-process cache for on-chain data — avoids hammering external APIs on
+# every overlay poll (overlay calls /public/stream/state every 5 s).
+_ONCHAIN: dict = {}
+_ONCHAIN_TTL = 60  # seconds
+
 app = FastAPI(title="Fantaball Public API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
@@ -174,6 +184,67 @@ def list_fixtures():
     ]
 
 
+def _fetch_onchain() -> dict:
+    """Hit DexScreener + Helius once; returns raw values (None on any failure).
+
+    price   → USD float  (e.g. 0.00000283)
+    mcap    → USD float  (e.g. 284_000)
+    vol     → USD float  (h24 volume)
+    holders → int  (token-account count; skipped — expensive, overlay hides None)
+    pool    → SOL float  (lamports / 1e9 of POOL_WALLET_ADDRESS)
+    locked  → same as pool (all pool-wallet funds are locked for the Final)
+    """
+    out: dict = {"price": None, "mcap": None, "vol": None,
+                 "holders": None, "pool": None, "locked": None}
+
+    if FANTABALL_MINT:
+        try:
+            r = requests.get(
+                f"https://api.dexscreener.com/latest/dex/tokens/{FANTABALL_MINT}",
+                timeout=10,
+            )
+            if r.status_code == 200:
+                pairs = [p for p in (r.json().get("pairs") or []) if p.get("priceUsd")]
+                if pairs:
+                    best = max(pairs, key=lambda p: float(
+                        (p.get("liquidity") or {}).get("usd") or 0))
+                    out["price"] = float(best["priceUsd"])
+                    raw_mcap = best.get("marketCap") or best.get("fdv")
+                    out["mcap"] = float(raw_mcap) if raw_mcap else None
+                    raw_vol = (best.get("volume") or {}).get("h24")
+                    out["vol"] = float(raw_vol) if raw_vol else None
+        except Exception:
+            pass
+
+    if HELIUS_API_KEY and POOL_WALLET_ADDRESS:
+        try:
+            r = requests.post(
+                f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}",
+                json={"jsonrpc": "2.0", "id": 1,
+                      "method": "getBalance",
+                      "params": [POOL_WALLET_ADDRESS]},
+                timeout=10,
+            )
+            if r.status_code == 200:
+                lamports = (r.json().get("result") or {}).get("value")
+                if lamports is not None:
+                    sol = lamports / 1e9
+                    out["pool"] = sol
+                    out["locked"] = sol  # all pool-wallet funds are locked for the Final
+        except Exception:
+            pass
+
+    return out
+
+
+def _get_onchain() -> dict:
+    now = time.time()
+    if _ONCHAIN.get("_ts", 0) + _ONCHAIN_TTL < now:
+        _ONCHAIN.update(_fetch_onchain())
+        _ONCHAIN["_ts"] = now
+    return {k: _ONCHAIN.get(k) for k in ("price", "mcap", "vol", "holders", "pool", "locked")}
+
+
 @app.get("/public/stream/state")
 def stream_state():
     """Aggregated snapshot for the live stream overlay.
@@ -182,10 +253,12 @@ def stream_state():
     price) and the SOL pool are filled by the on-chain reader job when wired.
     `owns` = top-50 most-owned players, descending.
     """
+    onchain = _get_onchain()
     out = {
-        "coaches": None, "squads": None, "pool": None,
-        "mcap": None, "vol": None, "holders": None, "price": None,
-        "locked": None,  # SOL locked in the pool wallet for the Final
+        "coaches": None, "squads": None,
+        "price": onchain["price"], "mcap": onchain["mcap"],
+        "vol": onchain["vol"],     "holders": onchain["holders"],
+        "pool": onchain["pool"],   "locked": onchain["locked"],
         "owns": [], "caps": [], "recent_shares": [], "locks": [],
     }
     if not (SUPA_URL and SUPA_KEY):

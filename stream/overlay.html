@@ -357,13 +357,23 @@
 
 <script>
 /* ════════════════════════════════════════════════════════════
-   DATA SOURCE
-   Demo mode = realistic simulated data so the overlay is alive now.
-   To go live: set DEMO=false and implement fetchLive() to read your
-   FastAPI public endpoints (see backend/public_api.py).
+   MANUAL CONFIG — edit these before going live
+   ════════════════════════════════════════════════════════════
+
+   DEMO  : true  = simulated data (safe to stream before launch)
+           false = live data from API_BASE every 5 s
+
+   API_BASE : your Railway backend URL (no trailing slash)
+              e.g. "https://fantaball-backend.up.railway.app"
+
+   DEV_WALLET  : your dev wallet address, abbreviated for display
+   POOL_WALLET : the prize-pool wallet address, abbreviated
+
+   BOUNTIES     : array of active pump.fun GO bounties shown on overlay
+   BOUNTY_TOTAL : total live bounty count (remainder shown as "+ N more")
    ════════════════════════════════════════════════════════════ */
-const DEMO = true;
-const API_BASE = "https://api.fantaball.tech"; // change when live
+const DEMO     = true;   // ← set false when live
+const API_BASE = "https://api.fantaball.tech"; // ← replace with real Railway URL
 
 /* seed player pool for the top-50 chart + milestones */
 const PLAYERS = ["MBAPPE","HAALAND","BELLINGHAM","VINICIUS JR","SAKA","MUSIALA","RODRI","PEDRI","FODEN","KANE",
@@ -372,26 +382,32 @@ const PLAYERS = ["MBAPPE","HAALAND","BELLINGHAM","VINICIUS JR","SAKA","MUSIALA",
 "YAMAL","WILLIAMS","GULER","ENDRICK","CUBARSI","ZUBIMENDI","BARELLA","TONALI","FRIMPONG","MAINOO",
 "GORDON","PALMER","WATKINS","GAKPO","SZOBOSZLAI","KONATE","DIAZ","NUNEZ","KIMMICH","WIRTZ II"];
 
-let state = {
+let state = DEMO ? {
   coaches: 8420, squads: 6180, pool: 312.4,
   mcap: 284, vol: 41.2, holders: 1847, price: 0.00028,
   owns: PLAYERS.map((n,i)=>({n, c: Math.round(4900*Math.exp(-i*0.075) + Math.random()*120)})),
-  // captains: who coaches pick as captain (×2) — different ordering, forwards dominate
   caps: ["MBAPPE","HAALAND","SALAH","KANE","VINICIUS JR","LAUTARO","OSIMHEN","BELLINGHAM"]
     .map((n,i)=>({n, c: Math.round(2100*Math.exp(-i*0.16) + Math.random()*60)})),
-  feesTotal: 520.8,  // total SOL claimed from dev wallet to date
-  lockedTotal: 180.0 // SOL moved to the pool wallet and locked for the Final
+  feesTotal: 520.8,
+  lockedTotal: 180.0,
+} : {
+  // Live mode: all fields start null/empty; first fetchLive() fills them in.
+  coaches: null, squads: null, pool: null,
+  mcap: null, vol: null, holders: null, price: null,
+  owns: [], caps: [],
+  feesTotal: 0, lockedTotal: 0,
 };
-const DEV_WALLET = "7xKp…q4Fz";  // your dev wallet (shortened)
-const POOL_WALLET = "Fp9L…z7Qx"; // dedicated prize-pool wallet (locked for the Final)
+const DEV_WALLET  = "7xKp…q4Fz"; // ← replace with your real dev wallet (abbreviated)
+const POOL_WALLET = "Fp9L…z7Qx"; // ← replace with your real pool wallet (abbreviated)
 
-/* active bounties on pump.fun GO (top ones shown; full list on go.pump.fun) */
+/* active bounties on pump.fun GO (top ones shown; full list on go.pump.fun)
+   ← replace with real live bounties */
 const BOUNTIES = [
-  {cat:"REACH", t:"Spotlight Stream", d:"Stream with the ticker on screen", rw:"◎1 SOL", win:"1 winner"},
-  {cat:"REACH", t:"Viral Post", d:"X post past 20k real views", rw:"◎1 SOL", win:"1 winner"},
-  {cat:"LADDER", t:"Bracket Oracle", d:"Most correct R16 results", rw:"◎0.5 SOL", win:"1 winner"},
+  {cat:"REACH",  t:"Spotlight Stream",  d:"Stream with the ticker on screen", rw:"◎1 SOL",   win:"1 winner"},
+  {cat:"REACH",  t:"Viral Post",        d:"X post past 20k real views",        rw:"◎1 SOL",   win:"1 winner"},
+  {cat:"LADDER", t:"Bracket Oracle",    d:"Most correct R16 results",           rw:"◎0.5 SOL", win:"1 winner"},
 ];
-const BOUNTY_TOTAL = 6; // total live bounties (rest shown via CTA)
+const BOUNTY_TOTAL = 6; // ← set to total live bounty count
 
 const HANDLES = ["@justafoolgoy","@degenmike","@sol_sammy","@cryptowiz","@ftbl_chad","@apekeeper","@0xfrog",
 "@meta_messi","@gmgary","@onchain_oli","@pumpqueen","@vinnie_sol","@lambo_luca","@bagholder_b","@solsniper"];
@@ -402,6 +418,7 @@ function fmtUsd(k){ return k>=1000 ? "$"+(k/1000).toFixed(2)+"M" : "$"+Math.roun
 
 /* ── RENDERERS ── */
 function renderChart(){
+  if (!state.owns.length) { document.getElementById("chart").innerHTML = ""; return; }
   const max = Math.max(...state.owns.map(o=>o.c));
   document.getElementById("chart").innerHTML = state.owns.slice(0,50).map(o=>`
     <div class="bar">
@@ -411,6 +428,7 @@ function renderChart(){
     </div>`).join("");
 }
 function renderCaptains(){
+  if (!state.caps.length) { document.getElementById("capList").innerHTML = ""; return; }
   const top = [...state.caps].sort((a,b)=>b.c-a.c).slice(0,4);
   const totalCaps = state.caps.reduce((s,c)=>s+c.c,0);
   document.getElementById("capList").innerHTML = top.map(o=>{
@@ -486,13 +504,13 @@ function pushClaim(amt){
   while(claimsEl.children.length>2) claimsEl.removeChild(claimsEl.lastChild);
 }
 function renderStats(){
-  setText("coaches", fmt(state.coaches));
-  setText("squads", fmt(state.squads));
-  setText("pool", state.pool.toFixed(1));
-  setText("mcap", fmtUsd(state.mcap));
-  setText("vol", fmtUsd(state.vol));
-  setText("holders", fmt(state.holders));
-  setText("price", "$"+state.price.toFixed(5));
+  setText("coaches", state.coaches != null ? fmt(state.coaches) : "—");
+  setText("squads",  state.squads  != null ? fmt(state.squads)  : "—");
+  setText("pool",    state.pool    != null ? state.pool.toFixed(1) : "—");
+  setText("mcap",    state.mcap    != null ? fmtUsd(state.mcap)   : "—");
+  setText("vol",     state.vol     != null ? fmtUsd(state.vol)    : "—");
+  setText("holders", state.holders != null ? fmt(state.holders)   : "—");
+  setText("price",   state.price   != null ? "$"+state.price.toFixed(5) : "—");
 }
 
 /* live feed */
@@ -572,14 +590,53 @@ function clock(){
   setText("upday", "DAY "+day);
 }
 
-/* ── LIVE MODE (wire to FastAPI later) ── */
+/* ── LIVE MODE ── */
 async function fetchLive(){
-  try{
+  try {
     const r = await fetch(`${API_BASE}/public/stream/state`);
+    if (!r.ok) return;
     const d = await r.json();
-    // map d -> state, then renderStats/renderChart/renderCaptains()
-    Object.assign(state, d); renderStats(); renderChart(); renderCaptains();
-  }catch(e){ /* keep last good state */ }
+
+    // coaches / squads — show delta since last fetch
+    if (d.coaches != null) {
+      const dC = state.coaches != null ? d.coaches - state.coaches : 0;
+      state.coaches = d.coaches;
+      if (dC > 0) setText("coachesd", "▲ +" + dC + " just now");
+    }
+    if (d.squads != null) {
+      const dS = state.squads != null ? d.squads - state.squads : 0;
+      state.squads = d.squads;
+      if (dS > 0) setText("squadsd", "▲ +" + dS + " just now");
+    }
+
+    // on-chain: DexScreener returns raw USD; state stores in thousands for fmtUsd()
+    const prev = { mcap: state.mcap, vol: state.vol, price: state.price, holders: state.holders };
+    if (d.price   != null) state.price   = d.price;
+    if (d.mcap    != null) state.mcap    = d.mcap / 1000;   // USD → K
+    if (d.vol     != null) state.vol     = d.vol  / 1000;   // USD → K
+    if (d.holders != null) state.holders = d.holders;
+    if (d.pool    != null) state.pool    = d.pool;
+    if (d.locked  != null) { state.lockedTotal = d.locked; renderFees(); }
+
+    // top-50 owns and captains (only override if non-empty — view may not exist yet)
+    if (d.owns && d.owns.length) state.owns = d.owns;
+    if (d.caps && d.caps.length) state.caps = d.caps;
+
+    // change badges (compare to previous fetch; skip on first call)
+    function badge(id, cur, old) {
+      if (cur == null || old == null) return;
+      const pct = ((cur - old) / old * 100).toFixed(1);
+      setText(id, (cur >= old ? "+" : "") + pct + "%");
+      document.getElementById(id).className = "chg " + (cur >= old ? "up" : "down");
+    }
+    badge("mcapc",   state.mcap,    prev.mcap);
+    badge("volc",    state.vol,     prev.vol);
+    badge("pricec",  state.price,   prev.price);
+    if (prev.holders != null && state.holders != null)
+      setText("holdersc", "+" + (state.holders - prev.holders));
+
+    renderStats(); renderChart(); renderCaptains();
+  } catch(e) { /* keep last good state */ }
 }
 
 /* ── BOOT ── */
