@@ -64,7 +64,7 @@ BASE = "https://v3.football.api-sports.io"
 
 CACHE_FILE = "wc2026_cache.json"
 
-BUDGET = 888
+BUDGET = 700
 MAX_PRICE = 155
 MIN_PRICE = 12
 

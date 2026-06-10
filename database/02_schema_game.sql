@@ -19,13 +19,13 @@ create table if not exists users (
 
 -- ---------------------------------------------------------------------
 -- ROSTERS — una rosa per utente (1:1)
--- budget_cap fisso a 888; budget_spent ricalcolato a ogni modifica rosa.
+-- budget_cap fisso a 700; budget_spent ricalcolato a ogni modifica rosa.
 -- ---------------------------------------------------------------------
 create table if not exists rosters (
   id              uuid primary key default gen_random_uuid(),
   user_id         uuid unique not null references users(id) on delete cascade,
   name            text,                          -- nome squadra scelto dall'utente
-  budget_cap      numeric(6,1) not null default 888.0,
+  budget_cap      numeric(6,1) not null default 700.0,
   budget_spent    numeric(6,1) not null default 0,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()

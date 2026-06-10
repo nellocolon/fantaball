@@ -470,7 +470,7 @@ def _ensure_user(user_id: str, jwt_payload: dict):
 # ─── /me ROUTER ───────────────────────────────────────────────────────────
 
 _REQUIRED = {"GK": 2, "DF": 5, "MF": 6, "FW": 3}
-_BUDGET_CAP = 888.0
+_BUDGET_CAP = 700.0
 
 me_router = APIRouter(prefix="/me", tags=["user"])
 
@@ -488,7 +488,7 @@ def create_roster(body: RosterBody, jwt_payload: dict = Depends(require_user)):
     Validates:
       - Exactly 16 distinct player IDs
       - Composition: 2 GK / 5 DF / 6 MF / 3 FW
-      - sum(price) <= 888
+      - sum(price) <= 700
 
     Idempotent: re-submitting before GW1 lock replaces the existing squad.
     Transfers/market windows are handled separately (deferred to post-launch).

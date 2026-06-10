@@ -119,7 +119,7 @@ const DEXSCREENER_URL = "";
 const PlayersContext = createContext(PLAYERS);
 const usePlayers = () => useContext(PlayersContext);
 
-const BUDGET = 888;
+const BUDGET = 700;
 const SQUAD_RULES = { GK:2, DF:5, MF:6, FW:3 };
 const SQUAD_SIZE = Object.values(SQUAD_RULES).reduce((a,b)=>a+b,0); // 16
 const POS_LABEL = { GK:"GK", DF:"DEF", MF:"MID", FW:"FWD" };
@@ -1896,7 +1896,7 @@ function ShareModal({squad,captain,vice,teamName,jersey,country,onClose}){
               <div style={{marginTop:10}}>
                 <div style={{fontSize:9,color:"#ffffff77",letterSpacing:1,fontWeight:700}}>VALUE</div>
                 <div style={{display:"flex",alignItems:"center",gap:4,fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:"#fff"}}>
-                  <Icon name="credit" size={13} style={{color:C.orange}}/>888
+                  <Icon name="credit" size={13} style={{color:C.orange}}/>700
                 </div>
               </div>
               {capP && (
@@ -2403,7 +2403,7 @@ function About({setTab}){
     ["Is it free to play?","Yes — no entry fee and no pay-to-win. The only requirement is holding $FANTABALL: buy $25 worth when you join, and stay eligible each gameweek (keep your entry tokens, or at least $25 of value). The prize pool comes entirely from token trading fees. Tap \"How it works\" on the Pool tab for the full mechanic."],
     ["How do I win SOL?","The top 100 managers on the final leaderboard split the prize pool, paid in SOL. Even 100th place gets paid. A strong podium, but the curve rewards depth."],
     ["What makes points?","Only objective, API-verified events: goals, assists, clean sheets, minutes played, cards. No subjective ratings. Anyone can rebuild any score event by event."],
-    ["Can I change my team?","Your 16-man squad is set with a budget of 888 credits. You pick 11 starters each matchday and can make transfers between tournament stages."],
+    ["Can I change my team?","Your 16-man squad is set with a budget of 700 credits. You pick 11 starters each matchday and can make transfers between tournament stages."],
     ["What happens after the World Cup?","The platform continues. The World Cup is our launch tournament — Premier League is the next chapter, then more leagues. Same token, same platform."],
     ["Can I earn without being a top player?","Yes. 30% of fees fund bounties on pump.fun GO — stream, post, or predict to earn SOL. Each bounty pays one winner (pump.fun decides), but every entry helps grow the project."],
     ["Can I join after the World Cup has started?","Yes — you can register until the last group-stage matchday. For each group-stage matchday already played, you'll receive a default score equal to that matchday's floor: the lowest score posted by a team that fielded 11 players who earned a rating. Example: if the lowest score among full teams on matchday 1 was 80, late joiners get 80 points for that matchday."],
@@ -2477,7 +2477,7 @@ function About({setTab}){
         <div style={{position:"relative"}}>
           <div style={S.stepConnector}/>
           {[
-            ["01","BUILD","888 credits, 16 players. Pick your champions within the budget — like building a portfolio."],
+            ["01","BUILD","700 credits, 16 players. Pick your champions within the budget — like building a portfolio."],
             ["02","FIELD","Choose 11 starters and a formation each matchday. One captain scores double."],
             ["03","CLIMB","Points stack across the whole tournament. One global leaderboard, no eliminations."],
             ["04","WIN","Top 100 split the pool in SOL. Free to play, funded by token fees."],

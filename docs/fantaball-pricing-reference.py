@@ -23,7 +23,7 @@ API_HOST = "v3.api-football.com"  # direct endpoint (x-apisports-key header)
 HEADERS = {"x-apisports-key": API_KEY}
 BASE = f"https://{API_HOST}"
 
-BUDGET = 888        # per-squad budget
+BUDGET = 700        # per-squad budget
 SQUAD_SIZE = 15
 MAX_PRICE = 155     # superstar ceiling
 MIN_PRICE = 12      # minimum (unknown backup)
@@ -145,7 +145,7 @@ def generate_seed_sql(players, filename="03_seed_players.sql"):
     where api_id == id (API-Football is the source of truth now).
     """
     lines = ["-- Auto-generated from API-Football WC 2026 squads + stats-based pricing",
-             "-- Budget: 888 / 15 players. Prices reflect club-season performance + team tier + hype.",
+             "-- Budget: 700 / 16 players. Prices reflect club-season performance + team tier + hype.",
              "TRUNCATE players CASCADE;", ""]
     for p in players:
         name_esc = p["name"].replace("'", "''")
@@ -187,7 +187,7 @@ def generate_compact_json(players, filename="all_players_compact.json"):
 # ─── BUDGET VALIDATION ───────────────────────────────────────────────
 def validate_budget(players):
     """
-    Check that the pricing allows building a valid 15-player squad within 888.
+    Check that the pricing allows building a valid 16-player squad within 700.
     Simulates: cheapest possible squad and most expensive possible squad.
     """
     by_pos = {"GK": [], "DF": [], "MF": [], "FW": []}
@@ -219,8 +219,8 @@ def validate_budget(players):
 #   Bottom 300:       12-20  (backups, young/unknown)
 #
 # Total players: ~1200-1300 (48 teams × 26 per squad)
-# Budget 888 / avg ~59 per player → a balanced squad uses 2 stars + solid mid + budget picks.
-# An all-star XI costs ~1200+ → impossible within 888 → forces real squad-building decisions.
+# Budget 700 / avg ~44 per player → a balanced squad uses 2 stars + solid mid + budget picks.
+# An all-star XI costs ~1200+ → impossible within 700 → forces real squad-building decisions.
 
 
 # ─── NOTES FOR GROK ──────────────────────────────────────────────────

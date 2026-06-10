@@ -17,9 +17,9 @@ Scegli **16 giocatori** tra i 1.248 del Mondiale, entro un budget fisso.
 | Attaccanti (FW) | 3 |
 | **Totale** | **16** |
 
-**Budget: 888 crediti.** Ogni giocatore ha un prezzo fisso (resta lo stesso per tutto il torneo). La somma dei 16 prezzi non può superare 888.
+**Budget: 700 crediti.** Ogni giocatore ha un prezzo fisso (resta lo stesso per tutto il torneo). La somma dei 16 prezzi non può superare 700.
 
-Nessun limite di giocatori per nazionale: puoi prendere quanti brasiliani vuoi. Con 888 crediti puoi costruire una squadra forte e divertente — 4-5 campioni più un blocco di buoni comprimari — ma non un undici tutto-stelle: quello sfora il budget. Il bello sta proprio nello scegliere su chi puntare.
+Nessun limite di giocatori per nazionale: puoi prendere quanti brasiliani vuoi. Con 700 crediti puoi costruire una squadra forte e divertente — 4-5 campioni più un blocco di buoni comprimari — ma non un undici tutto-stelle: quello sfora il budget. Il bello sta proprio nello scegliere su chi puntare.
 
 > **Consiglio:** non spendere tutti gli 800 subito. Tenere da parte un po' di crediti ti serve per rimpiazzare i giocatori eliminati durante il torneo (vedi §5).
 
@@ -76,17 +76,17 @@ Quando la nazionale di un tuo giocatore **esce dal torneo** (eliminata ai gironi
 - Il rimborso è arrotondato per difetto allo 0,5 più vicino. Esempio: giocatore pagato 79 → recuperi **39,5**.
 - Paghi il sostituto con i crediti che hai (margine residuo + rimborso). **Se non ti bastano per un rimpiazzo valido, schieri 10 giocatori** in quella giornata e parti svantaggiato: è la conseguenza di aver speso troppo.
 
-Il tetto resta sempre **888**: il rimborso è credito che rientra nel tuo budget, non un extra che lo sfonda. Per questo conviene tenersi un margine iniziale.
+Il tetto resta sempre **700**: il rimborso è credito che rientra nel tuo budget, non un extra che lo sfonda. Per questo conviene tenersi un margine iniziale.
 
 ---
 
 ## 6. Esempi di budget
 
-Con 888 crediti puoi costruire una squadra forte e ambiziosa, ma non un undici tutto-stelle:
+Con 700 crediti puoi costruire una squadra forte e ambiziosa, ma non un undici tutto-stelle:
 
 | Strategia | Esempio | Costo | Margine |
 |---|---|---|---|
-| **Sexy** | 4 campioni (2 punte + 2 registi top) + 5 mid solidi + riempimento | ~888 | ~0 |
+| **Sexy** | 4 campioni (2 punte + 2 registi top) + 5 mid solidi + riempimento | ~700 | ~0 |
 | **Bilanciata** | 3 campioni + tanti buoni comprimari, margine ampio | ~720 | ~170 |
 | **All-star** | undici tutto-stelle | oltre 1.050 | ❌ fuori budget |
 
@@ -96,7 +96,7 @@ La squadra "sexy" ti dà 4 campioni veri ma quasi zero margine per i rimpiazzi. 
 
 ## 7. Riepilogo in 6 punti
 
-1. **16 giocatori** (2-5-6-3), budget **888**, prezzi fissi.
+1. **16 giocatori** (2-5-6-3), budget **700**, prezzi fissi.
 2. Schieri **11** a giornata, schema libero sopra il minimo (1-3-2-1).
 3. **Capitano ×2**, vice ×1,5 se il capitano non gioca.
 4. Riserva entra in automatico se un titolare non gioca.

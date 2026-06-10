@@ -39,7 +39,7 @@ Two principles shape every rule:
 
 ### Squad (the roster)
 - **15 players:** 2 goalkeepers, 5 defenders, 5 midfielders, 3 forwards.
-- **Budget:** 888 credits, fixed player prices. The budget is calibrated so an all-star XI is out of reach — a realistic squad is roughly four or five stars plus solid role players.
+- **Budget:** 700 credits, fixed player prices. The budget is calibrated so an all-star XI is out of reach — a realistic squad is roughly four or five stars plus solid role players.
 - **Transfers:** allowed only between tournament stages. When a player's nation is eliminated, that player returns 50% of their price as credits.
 
 ### Lineup (each matchday)
@@ -88,7 +88,7 @@ Private pools will carry a **4% service fee**, routed **90% to buyback-and-burn 
 
 The client is a mobile-first single-page app with a bottom tab bar. Main sections:
 
-- **Build** — the squad builder: pick 15 players within the 888-credit budget, by position and price.
+- **Build** — the squad builder: pick 16 players within the 700-credit budget, by position and price.
 - **Pitch** — set the matchday lineup, formation, captain and vice.
 - **Ranks** — the cumulative leaderboard and the SOL prize curve.
 - **Token** — tokenomics and the fee/prize money flow.
