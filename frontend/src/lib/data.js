@@ -64,29 +64,32 @@ export async function getLeaderboard(gameweekId = null) {
   return data;
 }
 
-// ── Authenticated writes (need Supabase Auth wired; safe no-ops without backend) ──
+// ── Authenticated writes — routed through the FastAPI backend ────────────
 // players: array of {id, pr} (id + price). meta: {name, budget_spent}
 export async function saveRoster(userId, players, meta = {}) {
-  if (!HAS_SUPABASE) return { demo: true }; // no-op without backend (quests/stats unaffected)
-  const { data, error } = await supabase
-    .from("rosters")
-    .upsert({ user_id: userId, ...meta }, { onConflict: "user_id" })
-    .select()
-    .single();
-  if (error) throw error;
-  // replace roster_players
-  await supabase.from("roster_players").delete().eq("roster_id", data.id);
-  if (players.length) {
-    const rows = players.map((p) => ({
-      roster_id: data.id,
-      player_id: p.id,
-      price_paid: Number(p.pr),   // required NOT NULL column
-      active: true,
-    }));
-    const { error: e2 } = await supabase.from("roster_players").insert(rows);
-    if (e2) throw e2;
+  if (!HAS_SUPABASE) return { demo: true };
+  const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+  if (!apiBase) throw new Error("VITE_API_URL non configurato");
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non autenticato: effettua il login.");
+  const res = await fetch(`${apiBase}/me/roster`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      players: players.map((p) => p.id),
+      name: meta.name,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.message || `Errore ${res.status}`);
   }
-  return data;
+  const data = await res.json();
+  // Normalize: callers use r?.id — map roster_id → id
+  return { id: data.roster_id, ...data };
 }
 
 export async function getMyRoster(userId) {
@@ -100,31 +103,41 @@ export async function getMyRoster(userId) {
   return data;
 }
 
-// ── Lineups (per-gameweek snapshot of starters + bench + captain/vice) ──
-// rosterId: uuid of the user's roster. gameweekId: integer.
-// starters: [playerId,...] (the 11). bench: [playerId,...] (ordered, 1..N).
-// captainId / viceId: player ids.
+// ── Lineups (per-gameweek snapshot of starters + subs + captain/vice) ──
+// rosterId: uuid (kept for signature compat; server derives it from JWT).
+// gameweekId: integer. starters: [playerId,...] (11).
+// bench: [playerId,...] (5 = squad − starters, in squad order).
+//   → first 3 become subs with bench_order 1/2/3
+//   → last 2 are unselected and inferred by the server (not sent)
 export async function saveLineup(rosterId, gameweekId, { starters = [], bench = [], captainId = null, viceId = null }) {
-  if (!HAS_SUPABASE) return { demo: true }; // no-op without backend (quests/stats unaffected)
-  // replace this gameweek's lineup for the roster
-  await supabase.from("lineups").delete()
-    .eq("roster_id", rosterId).eq("gameweek_id", gameweekId);
-  const rows = [
-    ...starters.map((pid) => ({
-      roster_id: rosterId, gameweek_id: gameweekId, player_id: pid,
-      slot: "starter", bench_order: null,
-      is_captain: pid === captainId, is_vice: pid === viceId,
-    })),
-    ...bench.map((pid, i) => ({
-      roster_id: rosterId, gameweek_id: gameweekId, player_id: pid,
-      slot: "bench", bench_order: i + 1,
-      is_captain: false, is_vice: false,
-    })),
-  ];
-  if (!rows.length) return { roster_id: rosterId, gameweek_id: gameweekId, count: 0 };
-  const { error } = await supabase.from("lineups").insert(rows);
-  if (error) throw error;
-  return { roster_id: rosterId, gameweek_id: gameweekId, count: rows.length };
+  if (!HAS_SUPABASE) return { demo: true };
+  const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+  if (!apiBase) throw new Error("VITE_API_URL non configurato");
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non autenticato: effettua il login.");
+  const res = await fetch(`${apiBase}/me/lineup/${gameweekId}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      starters: starters.map((pid) => ({
+        player_id: pid,
+        is_captain: pid === captainId,
+        is_vice: pid === viceId,
+      })),
+      subs: bench.slice(0, 3).map((pid, i) => ({
+        player_id: pid,
+        bench_order: i + 1,
+      })),
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.message || `Errore ${res.status}`);
+  }
+  return res.json();
 }
 
 export async function getLineup(rosterId, gameweekId) {
@@ -138,7 +151,16 @@ export async function getLineup(rosterId, gameweekId) {
   if (!data || !data.length) return null;
   return {
     starters: data.filter((r) => r.slot === "starter").map((r) => r.player_id),
-    bench: data.filter((r) => r.slot === "bench").map((r) => r.player_id),
+    // subs in bench_order (1,2,3) + unselected appended → ricostruisce i 5 di panchina
+    bench: [
+      ...data
+        .filter((r) => r.slot === "sub")
+        .sort((a, b) => (a.bench_order ?? 99) - (b.bench_order ?? 99))
+        .map((r) => r.player_id),
+      ...data
+        .filter((r) => r.slot === "unselected")
+        .map((r) => r.player_id),
+    ],
     captainId: (data.find((r) => r.is_captain) || {}).player_id ?? null,
     viceId: (data.find((r) => r.is_vice) || {}).player_id ?? null,
   };

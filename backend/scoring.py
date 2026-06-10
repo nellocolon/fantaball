@@ -108,52 +108,50 @@ def score_user_gameweek(lineup, player_scores, player_minutes, schema_min=None):
     """
     Calcola i punti utente per una giornata applicando auto-sostituzione e capitano.
 
-    lineup: lista di dict, uno per giocatore in rosa per quella GW:
-        {player_id, position, slot:'starter'|'bench', bench_order:int|None,
-         is_captain:bool, is_vice:bool}
+    lineup: lista di dict per tutti i 16 giocatori della GW:
+        {player_id, position, slot:'starter'|'sub'|'unselected',
+         bench_order:int|None, is_captain:bool, is_vice:bool}
     player_scores:  dict player_id -> punti grezzi (da score_player)
-    player_minutes: dict player_id -> minuti giocati (per capire chi "non ha giocato")
-    schema_min: minimi per reparto tra gli 11 finali (default 1-3-2-1)
+    player_minutes: dict player_id -> minuti giocati
+    schema_min: ignorato (mantenuto per compatibilità firma)
 
+    Auto-sub §1.3: stesso ruolo, ordine bench_order; slot='unselected' ignorato.
     Ritorna: (gw_points, captain_points, detail)
     """
-    if schema_min is None:
-        schema_min = {"GK": 1, "DF": 3, "MF": 2, "FW": 1}
-
     starters = [p for p in lineup if p["slot"] == "starter"]
-    bench    = sorted([p for p in lineup if p["slot"] == "bench"],
-                      key=lambda p: (p.get("bench_order") or 99))
+    # slot='unselected' è ignorato: solo i 3 sostituti ordinati entrano nel calcolo
+    bench = sorted(
+        [p for p in lineup if p["slot"] == "sub"],
+        key=lambda p: (p.get("bench_order") or 99),
+    )
 
-    pts = lambda pid: player_scores.get(pid, 0.0)
+    pts    = lambda pid: player_scores.get(pid, 0.0)
     played = lambda pid: player_minutes.get(pid, 0) > 0
 
-    # --- Auto-sostituzione: titolari che non hanno giocato -> rimpiazzati da riserve ---
-    final_eleven = []
-    used_bench = set()
-    # conteggio ruoli correnti tra i titolari che HANNO giocato
-    def role_counts(lst):
-        c = {"GK":0,"DF":0,"MF":0,"FW":0}
-        for p in lst: c[p["position"]] += 1
-        return c
+    # --- Auto-sostituzione per ruolo (§1.3) ---
+    # Titolare che non ha giocato → primo sub STESSO RUOLO non ancora usato che ha giocato.
+    # Nessun sub stesso ruolo disponibile → slot fa 0 punti (non aggiunto a final_eleven).
+    used_bench: set = set()
+    final_eleven: list = []
 
-    survivors = [p for p in starters if played(p["player_id"])]
-    missing   = [p for p in starters if not played(p["player_id"])]
+    for s in starters:
+        if played(s["player_id"]):
+            final_eleven.append(s)
+        else:
+            repl = next(
+                (b for b in bench
+                 if b["position"] == s["position"]
+                 and b["player_id"] not in used_bench
+                 and played(b["player_id"])),
+                None,
+            )
+            if repl:
+                used_bench.add(repl["player_id"])
+                final_eleven.append(repl)
+            # altrimenti: slot vuoto, 0 punti
 
-    final_eleven = list(survivors)
-    for gone in missing:
-        # cerca la prima riserva che ha giocato e mantiene lo schema valido
-        for b in bench:
-            if b["player_id"] in used_bench: continue
-            if not played(b["player_id"]):   continue
-            # provo a inserirla
-            trial = final_eleven + [b]
-            rc = role_counts(trial)
-            # vincolo: non meno dei minimi, max 1 GK, totale <= 11
-            if rc["GK"] <= 1 and len(trial) <= 11:
-                final_eleven.append(b); used_bench.add(b["player_id"]); break
-        # se nessuna riserva valida: lo slot resta vuoto (0 punti), si schiera in meno
-
-    # --- Somma punti con capitano/vice ---
+    # --- Capitano ×2 / Vice ×1.5 ---
+    # Vice subentra come capitano (×2) solo se il capitano non ha giocato.
     captain = next((p for p in lineup if p.get("is_captain")), None)
     vice    = next((p for p in lineup if p.get("is_vice")), None)
     captain_played = captain and played(captain["player_id"])
@@ -167,7 +165,7 @@ def score_user_gameweek(lineup, player_scores, player_minutes, schema_min=None):
         role = ""
         if captain and pid == captain["player_id"] and captain_played:
             role = "C"
-        elif (not captain_played) and vice and pid == vice["player_id"] and played(pid):
+        elif not captain_played and vice and pid == vice["player_id"] and played(pid):
             role = "V"
         final_pts = apply_captain(raw, role)
         if role in ("C", "V"):
@@ -214,19 +212,30 @@ if __name__ == "__main__":
     allok &= check("Vice netto +6 x1.5", apply_captain(6, "V"), 9)
 
     # Test livello utente: capitano FW che fa tripletta(23), un titolare DF non gioca,
-    # entra riserva DF che fa +2. Capitano 23*2=46.
+    # entra sub DF (bench_order=1) che fa +2. Capitano 23*2=46.
     lineup = [
         {"player_id":1,"position":"FW","slot":"starter","is_captain":True,"is_vice":False,"bench_order":None},
         {"player_id":2,"position":"DF","slot":"starter","is_captain":False,"is_vice":False,"bench_order":None},
         {"player_id":3,"position":"GK","slot":"starter","is_captain":False,"is_vice":False,"bench_order":None},
-        {"player_id":4,"position":"DF","slot":"bench","is_captain":False,"is_vice":False,"bench_order":1},
+        {"player_id":4,"position":"DF","slot":"sub",    "is_captain":False,"is_vice":False,"bench_order":1},
+        {"player_id":5,"position":"MF","slot":"unselected","is_captain":False,"is_vice":False,"bench_order":None},
     ]
-    pscore = {1:23, 2:0, 3:6, 4:2}
-    pmin   = {1:90, 2:0, 3:90, 4:70}   # giocatore 2 non ha giocato -> entra il 4
-    gw, cap, det = score_user_gameweek(lineup, pscore, pmin,
-                                       schema_min={"GK":1,"DF":1,"MF":0,"FW":1})
-    # totale = cap 46 + GK 6 + riserva DF 2 = 54 ; capitano = 46
+    pscore = {1:23, 2:0, 3:6, 4:2, 5:99}  # player 5 unselected: ignorato
+    pmin   = {1:90, 2:0, 3:90, 4:70, 5:90}
+    gw, cap, det = score_user_gameweek(lineup, pscore, pmin)
+    # totale = cap 46 + GK 6 + sub DF 2 = 54 ; capitano = 46 ; player 5 ignorato
     allok &= check("Utente con auto-sub+capitano (tot)", gw, 54)
     allok &= check("Utente capitano_points", cap, 46)
+
+    # Test auto-sub NO stesso ruolo: MF titolare non gioca, sub è DF -> nessun subentro
+    lineup2 = [
+        {"player_id":1,"position":"GK","slot":"starter","is_captain":True, "is_vice":False,"bench_order":None},
+        {"player_id":2,"position":"MF","slot":"starter","is_captain":False,"is_vice":False,"bench_order":None},
+        {"player_id":3,"position":"DF","slot":"sub",    "is_captain":False,"is_vice":False,"bench_order":1},
+    ]
+    pscore2 = {1:4, 2:0, 3:8}
+    pmin2   = {1:90, 2:0, 3:90}  # player 2 non gioca, sub è DF -> nessun rimpiazzo MF
+    gw2, _, _ = score_user_gameweek(lineup2, pscore2, pmin2)
+    allok &= check("Auto-sub ruolo diverso: slot vuoto (solo GK conta)", gw2, 8.0)  # GK cap x2=8
 
     print("\nTUTTI I TEST PASSATI" if allok else "\n!! ALCUNI TEST FALLITI")

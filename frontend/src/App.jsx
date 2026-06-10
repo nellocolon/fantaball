@@ -448,22 +448,32 @@ export default function App(){
   function setCap(id){ setVice(v=>v===id?null:v); setCaptain(c=>c===id?null:id); }
   function setVc(id){ setCaptain(c=>c===id?null:c); setVice(v=>v===id?null:id); }
 
-  // Improved swap: any two of same role (starter<->starter for positioning, or starter<->bench)
+  // Swap: starter↔starter (reposition), starter↔bench (same role), bench↔bench (reorder, any role)
   function swapPlayers(aId, bId){
-    if (formationLock && formationLock.canEdit === false) return; // locked window — no edits
+    if (formationLock && formationLock.canEdit === false) return;
     if(!aId || !bId || aId===bId) return;
     const pa = players.find(x=>x.id===aId);
     const pb = players.find(x=>x.id===bId);
-    if(!pa || !pb || pa.p !== pb.p) return;
+    if(!pa || !pb) return;
     setStarters(prev=>{
       const ia=prev.indexOf(aId), ib=prev.indexOf(bId);
       const aIs=ia>=0, bIs=ib>=0;
+      // bench↔bench: swap positions in squad array to change SUB/FUORI slots (no role restriction)
+      if(!aIs && !bIs){
+        setSquad(sq=>{
+          const next=[...sq];
+          const qa=next.indexOf(aId), qb=next.indexOf(bId);
+          if(qa>=0 && qb>=0){ next[qa]=bId; next[qb]=aId; }
+          return next;
+        });
+        return prev; // starters unchanged
+      }
+      // starter↔anything: same role required to keep formation valid
+      if(pa.p !== pb.p) return prev;
       if(aIs && bIs){
-        // both starters: reorder within array so formation row placement updates
         const next=[...prev]; next[ia]=bId; next[ib]=aId; return next;
       }
       if(aIs && !bIs){
-        // starter out, bench in at that slot; clear C/V from outgoing (consistent w/ prior promote)
         if(captain===aId) setCaptain(null);
         if(vice===aId) setVice(null);
         return prev.map(id => id===aId ? bId : id);
@@ -1175,7 +1185,9 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,setShar
   }
   const selP = swapSel.map(id=>PLAYERS.find(p=>p.id===id)).filter(Boolean);
   const onFieldCount = swapSel.filter(id=>starters.includes(id)).length;
-  const canSwap = swapSel.length===2 && selP.length===2 && selP[0].p === selP[1].p && onFieldCount >= 1;
+  const bothBench = onFieldCount === 0 && swapSel.length===2 && selP.length===2;
+  const canSwap = swapSel.length===2 && selP.length===2 &&
+    (bothBench || (selP[0].p === selP[1].p && onFieldCount >= 1));
 
   function executeSwap(){
     if(!canSwap || !swapPlayers || isLocked) return;
@@ -1368,7 +1380,7 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,setShar
             <span style={{fontSize:11,color:"#c2410f",fontWeight:700}}>Editing locked — swap disabled</span>
           ) : (
             <span style={{fontSize:11,color: canSwap ? C.ink : C.mute, fontWeight:700}}>
-              {swapSel.length===1 ? "Select 2nd player (same role)" : canSwap ? "Both highlighted — ready" : "Different roles — not allowed"}
+              {swapSel.length===1 ? "Select 2nd player (same role for field, any for bench reorder)" : canSwap ? (bothBench ? "Bench reorder — tap Swap" : "Both highlighted — ready") : "Different roles — not allowed"}
             </span>
           )}
           {swapSel.length===2 && canSwap && !isLocked && (
@@ -1391,15 +1403,40 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,setShar
         <div style={{marginTop:14, opacity: isLocked ? 0.6 : 1}}>
           <div style={S.sectionLabel}>{isLocked ? "BENCH (locked — editing disabled)" : "BENCH · tap to select for swap (same role)"}</div>
           <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4}}>
-            {benchPlayers.map((p,i)=>(
-              <button key={p.id} onClick={()=>toggleSwapSelect(p.id)} style={{...S.benchCard, ...(swapSel.includes(p.id)?{border:`2px solid ${C.orange}`, boxShadow:`0 0 0 3px ${C.orange}22`}:{})}}>
-                <div style={S.benchOrder}>{i+1}</div>
-                <JerseyShirt {...jersey} num={p.num} size={34}/>
-                <div style={S.benchName}>{p.n}</div>
-                <div style={S.benchPos}>{POS_LABEL[p.p]} · {FLAG[p.t]||"🏳"}</div>
-              </button>
-            ))}
+            {benchPlayers.map((p,i)=>{
+              const isSub = i < 3;
+              const isSelected = swapSel.includes(p.id);
+              return (
+                <button key={p.id} onClick={()=>toggleSwapSelect(p.id)} style={{
+                  ...S.benchCard,
+                  opacity: isSub ? 1 : 0.45,
+                  border: isSelected
+                    ? `2px solid ${C.orange}`
+                    : isSub
+                      ? `1.5px solid ${C.orange}88`
+                      : `1px solid ${C.line}`,
+                  boxShadow: isSelected ? `0 0 0 3px ${C.orange}22` : undefined,
+                }}>
+                  <div style={{...S.benchOrder,
+                    background: isSub ? C.orangeSoft : C.line,
+                    color: isSub ? C.orangeDeep : C.mute,
+                  }}>
+                    {isSub ? i+1 : "—"}
+                  </div>
+                  <JerseyShirt {...jersey} num={p.num} size={34}/>
+                  <div style={S.benchName}>{p.n}</div>
+                  <div style={S.benchPos}>{POS_LABEL[p.p]} · {FLAG[p.t]||"🏳"}</div>
+                  <div style={{fontSize:8,fontWeight:900,letterSpacing:.5,fontFamily:"'Archivo',sans-serif",
+                    color: isSub ? C.orangeDeep : C.mute, marginTop:1}}>
+                    {isSub ? `SUB ${i+1}` : "FUORI"}
+                  </div>
+                </button>
+              );
+            })}
           </div>
+          <p style={{fontSize:10,color:C.mute,margin:"6px 2px 0",lineHeight:1.4}}>
+            I primi 3 subentrano in ordine se un titolare non gioca (auto-sub per ruolo); gli ultimi 2 restano fuori e non segnano.
+          </p>
         </div>
       )}
 

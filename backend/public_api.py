@@ -15,6 +15,7 @@ Deploy:        see backend/README.md (Railway / any ASGI host)
 """
 
 import os
+import time
 import requests
 from typing import Optional
 from datetime import datetime, timezone
@@ -370,42 +371,81 @@ def supa_delete(table: str, query: str):
         raise HTTPException(502, f"DB delete error ({table}): {r.status_code} {r.text[:300]}")
 
 
-# ─── AUTH (Supabase JWT) ──────────────────────────────────────────────────
+# ─── AUTH (Supabase JWT — ES256 / JWKS) ──────────────────────────────────
+#
+# Supabase projects with asymmetric signing (ECC P-256) issue ES256 tokens.
+# We verify them against the public keys published at:
+#   {SUPABASE_URL}/auth/v1/.well-known/jwks.json
+# Keys are cached in-process for 1 hour (they rarely rotate).
+# No SUPABASE_JWT_SECRET needed.
 
-SUPA_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET")
+from jose import jwt as _jose_jwt, JWTError as _JWTError
 
-try:
-    from jose import jwt as _jose_jwt, JWTError as _JWTError
-    _JOSE_OK = True
-except ImportError:
-    _JOSE_OK = False
+_jwks_cache: dict = {"keys": [], "fetched_at": 0.0}
+_JWKS_TTL = 3600  # seconds
+
+
+def _jwks_url() -> str:
+    if not SUPA_URL:
+        raise HTTPException(503, "SUPABASE_URL not configured")
+    return f"{SUPA_URL}/auth/v1/.well-known/jwks.json"
+
+
+def _get_jwks_keys() -> list[dict]:
+    now = time.time()
+    if _jwks_cache["keys"] and now - _jwks_cache["fetched_at"] < _JWKS_TTL:
+        return _jwks_cache["keys"]
+    try:
+        resp = requests.get(_jwks_url(), timeout=10)
+        resp.raise_for_status()
+        keys = resp.json().get("keys", [])
+    except Exception as exc:
+        if _jwks_cache["keys"]:
+            return _jwks_cache["keys"]  # serve stale cache on transient error
+        raise HTTPException(503, f"Cannot fetch JWKS from Supabase: {exc}")
+    _jwks_cache["keys"] = keys
+    _jwks_cache["fetched_at"] = now
+    return keys
 
 
 def require_user(authorization: str = Header(None)) -> dict:
     """
-    FastAPI dependency — validates the Supabase JWT from the Authorization header.
-    Returns the decoded JWT payload. payload['sub'] == auth.uid() == users.id.
-
-    Supabase uses HS256 JWTs signed with the project JWT secret.
-    Add SUPABASE_JWT_SECRET to backend/.env (Supabase dashboard → Settings → API).
+    FastAPI dependency — validates the Supabase JWT (ES256) from the
+    Authorization header.  Returns the decoded payload.
+    payload['sub'] == auth.uid() == users.id (UUID string).
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Authorization header missing or malformed")
     token = authorization[7:]
-    if not SUPA_JWT_SECRET:
-        raise HTTPException(503, "SUPABASE_JWT_SECRET not configured on server")
-    if not _JOSE_OK:
-        raise HTTPException(503, "python-jose not installed — run: pip install python-jose[cryptography]")
+
     try:
-        payload = _jose_jwt.decode(
-            token,
-            SUPA_JWT_SECRET,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
-        return payload
-    except _JWTError as exc:
-        raise HTTPException(401, f"Invalid or expired token: {exc}")
+        header = _jose_jwt.get_unverified_header(token)
+    except Exception as exc:
+        raise HTTPException(401, f"Malformed token header: {exc}")
+
+    kid = header.get("kid")
+    alg = header.get("alg", "ES256")
+
+    keys = _get_jwks_keys()
+    # Prefer the key matching 'kid'; fall back to trying all keys.
+    candidates = [k for k in keys if not kid or k.get("kid") == kid] or keys
+    if not candidates:
+        raise HTTPException(503, "No JWKS keys available for verification")
+
+    last_exc: Exception = Exception("no keys tried")
+    for key_dict in candidates:
+        try:
+            payload = _jose_jwt.decode(
+                token,
+                key_dict,
+                algorithms=[alg],
+                audience="authenticated",
+            )
+            return payload
+        except _JWTError as exc:
+            last_exc = exc
+
+    raise HTTPException(401, f"Token verification failed: {last_exc}")
 
 
 def _ensure_user(user_id: str, jwt_payload: dict):
@@ -464,10 +504,23 @@ def create_roster(body: RosterBody, jwt_payload: dict = Depends(require_user)):
     if len(set(body.players)) != 16:
         raise HTTPException(422, "La rosa contiene giocatori duplicati")
 
-    # ── 2. Ensure users row exists (defensive) ────────────────────────────
+    # ── 2. Reject if GW1 is already locked (rosa immutabile dopo il kickoff) ──
+    gw1_rows = supa_get("gameweeks", "id=eq.1&select=locks_at")
+    if gw1_rows:
+        locks_at_str = gw1_rows[0].get("locks_at")
+        if locks_at_str:
+            lock_dt = datetime.fromisoformat(locks_at_str.replace("Z", "+00:00"))
+            if datetime.now(timezone.utc) >= lock_dt:
+                raise HTTPException(
+                    409,
+                    "Il torneo è iniziato: la rosa non è più modificabile "
+                    "(GW1 bloccata). I trasferimenti sono gestiti nelle finestre di mercato.",
+                )
+
+    # ── 3. Ensure users row exists (defensive) ────────────────────────────
     _ensure_user(user_id, jwt_payload)
 
-    # ── 3. Fetch players from DB ──────────────────────────────────────────
+    # ── 4. Fetch players from DB ──────────────────────────────────────────
     ids_qs = ",".join(str(pid) for pid in body.players)
     db_players = supa_get("players", f"id=in.({ids_qs})&select=id,position,price")
     found = {r["id"]: r for r in db_players}
@@ -476,7 +529,7 @@ def create_roster(body: RosterBody, jwt_payload: dict = Depends(require_user)):
     if missing:
         raise HTTPException(422, f"Giocatori non trovati nel database: {missing}")
 
-    # ── 4. Composition check ──────────────────────────────────────────────
+    # ── 5. Composition check ──────────────────────────────────────────────
     counts: dict[str, int] = {"GK": 0, "DF": 0, "MF": 0, "FW": 0}
     for pid in body.players:
         counts[found[pid]["position"]] += 1
@@ -488,12 +541,12 @@ def create_roster(body: RosterBody, jwt_payload: dict = Depends(require_user)):
         )
         raise HTTPException(422, f"Composizione non valida — {detail}")
 
-    # ── 5. Budget check ───────────────────────────────────────────────────
+    # ── 6. Budget check ───────────────────────────────────────────────────
     total_price = round(sum(float(found[pid]["price"]) for pid in body.players), 1)
     if total_price > _BUDGET_CAP:
         raise HTTPException(422, f"Budget superato: {total_price} > {_BUDGET_CAP}")
 
-    # ── 6. Create or replace the roster row ──────────────────────────────
+    # ── 7. Create or replace the roster row ──────────────────────────────
     existing = supa_get("rosters", f"user_id=eq.{user_id}&select=id")
 
     if existing:
@@ -517,7 +570,7 @@ def create_roster(body: RosterBody, jwt_payload: dict = Depends(require_user)):
         )
         roster_id = rows[0]["id"]
 
-    # ── 7. Insert the 16 roster_players ──────────────────────────────────
+    # ── 8. Insert the 16 roster_players ──────────────────────────────────
     supa_insert("roster_players", [
         {
             "roster_id": roster_id,
@@ -550,14 +603,15 @@ class StarterItem(BaseModel):
     is_vice: bool = False
 
 
-class BenchItem(BaseModel):
+class SubItem(BaseModel):
     player_id: int
-    bench_order: int  # 1..4, ordine di subentro
+    bench_order: int  # 1, 2 o 3 — ordine di subentro
 
 
 class LineupBody(BaseModel):
-    starters: list[StarterItem]  # exactly 11
-    bench: list[BenchItem]       # 1..4 giocatori, bench_order univoco
+    starters: list[StarterItem]  # esattamente 11
+    subs: list[SubItem]          # esattamente 3, bench_order in {1,2,3}
+    # I 2 "non convocati" vengono inferiti dal server (roster − starters − subs)
 
 
 _STARTER_MIN = {"GK": 1, "DF": 3, "MF": 2, "FW": 1}
@@ -569,12 +623,13 @@ def submit_lineup(gw: int, body: LineupBody, jwt_payload: dict = Depends(require
     """
     Save the user's lineup for a gameweek.
 
-    Starters: exactly 11 players, one is_captain, one is_vice.
-    Formation constraints: 1 GK, 3-5 DF, 2-5 MF, 1-3 FW.
-    Bench: 1-4 players with unique bench_order (1-based).
-    All players must be in the user's active roster.
-    Rejected if the GW is already locked (kickoff passed).
+    Starters : exactly 11, one is_captain, one is_vice.
+               Formation: 1 GK, 3-5 DF, 2-5 MF, 1-3 FW.
+    Subs     : exactly 3, bench_order must be exactly {1, 2, 3}.
+    Unselected: the remaining 2 roster players — inferred by the server.
 
+    All 14 explicit players must be in the user's active roster.
+    Rejected if the GW is already locked.
     Idempotent: re-submitting replaces the previous lineup.
     """
     user_id: str = jwt_payload["sub"]
@@ -598,20 +653,21 @@ def submit_lineup(gw: int, body: LineupBody, jwt_payload: dict = Depends(require
         raise HTTPException(404, "Devi prima creare la rosa (POST /me/roster)")
     roster_id: str = rosters[0]["id"]
 
-    # ── 3. Basic body validation ──────────────────────────────────────────
+    # ── 3. Basic counts & uniqueness ─────────────────────────────────────
     if len(body.starters) != 11:
         raise HTTPException(
             422, f"Servono esattamente 11 titolari ({len(body.starters)} ricevuti)"
         )
-    if not (1 <= len(body.bench) <= 4):
+    if len(body.subs) != 3:
         raise HTTPException(
-            422, f"La panchina deve avere 1-4 giocatori ({len(body.bench)} ricevuti)"
+            422, f"Servono esattamente 3 sostituti ({len(body.subs)} ricevuti)"
         )
 
-    all_ids = [s.player_id for s in body.starters] + [b.player_id for b in body.bench]
-    if len(set(all_ids)) != len(all_ids):
+    explicit_ids = [s.player_id for s in body.starters] + [b.player_id for b in body.subs]
+    if len(set(explicit_ids)) != len(explicit_ids):
         raise HTTPException(422, "La formazione contiene giocatori duplicati")
 
+    # ── 4. Capitano / vice ────────────────────────────────────────────────
     captains = [s for s in body.starters if s.is_captain]
     vices    = [s for s in body.starters if s.is_vice]
     if len(captains) != 1:
@@ -625,13 +681,16 @@ def submit_lineup(gw: int, body: LineupBody, jwt_payload: dict = Depends(require
     if captains[0].player_id == vices[0].player_id:
         raise HTTPException(422, "Capitano e vice-capitano devono essere giocatori diversi")
 
-    bench_orders = [b.bench_order for b in body.bench]
-    if len(set(bench_orders)) != len(bench_orders):
-        raise HTTPException(422, "I bench_order dei sostituti devono essere univoci")
-    if not all(1 <= o <= 4 for o in bench_orders):
-        raise HTTPException(422, "bench_order deve essere compreso tra 1 e 4")
+    # ── 5. bench_order must be exactly {1, 2, 3} ─────────────────────────
+    bench_orders = sorted(b.bench_order for b in body.subs)
+    if bench_orders != [1, 2, 3]:
+        raise HTTPException(
+            422,
+            f"I bench_order dei 3 sostituti devono essere esattamente 1, 2 e 3 "
+            f"(ricevuti: {bench_orders})"
+        )
 
-    # ── 4. Verify all players are in the active roster + get positions ────
+    # ── 6. Fetch all 16 active roster players + positions ─────────────────
     rp_rows = supa_get(
         "roster_players",
         f"roster_id=eq.{roster_id}&active=eq.true&select=player_id,players(position)",
@@ -643,11 +702,18 @@ def submit_lineup(gw: int, body: LineupBody, jwt_payload: dict = Depends(require
         pos = (emb.get("position") if isinstance(emb, dict) else None) or ""
         roster_map[pid] = pos
 
-    not_in_roster = [pid for pid in all_ids if pid not in roster_map]
+    if len(roster_map) != 16:
+        raise HTTPException(
+            409,
+            f"La rosa attiva ha {len(roster_map)} giocatori (attesi 16). "
+            "Completa prima la rosa (POST /me/roster).",
+        )
+
+    not_in_roster = [pid for pid in explicit_ids if pid not in roster_map]
     if not_in_roster:
         raise HTTPException(422, f"Giocatori non nella rosa attiva: {not_in_roster}")
 
-    # ── 5. Formation check on starters ───────────────────────────────────
+    # ── 7. Formation check on starters ───────────────────────────────────
     counts: dict[str, int] = {"GK": 0, "DF": 0, "MF": 0, "FW": 0}
     for s in body.starters:
         counts[roster_map[s.player_id]] += 1
@@ -662,10 +728,17 @@ def submit_lineup(gw: int, body: LineupBody, jwt_payload: dict = Depends(require
     if errors:
         raise HTTPException(422, f"Formazione non valida — {', '.join(errors)}")
 
-    # ── 6. Replace lineup for this roster+GW ─────────────────────────────
+    # ── 8. Infer the 2 unselected players ────────────────────────────────
+    explicit_set = set(explicit_ids)
+    unselected_ids = [pid for pid in roster_map if pid not in explicit_set]
+    # Sanity check (guaranteed by roster_map size == 16 and explicit == 14)
+    if len(unselected_ids) != 2:
+        raise HTTPException(500, "Errore interno: calcolo non-convocati fallito")
+
+    # ── 9. Replace lineup for this roster+GW ─────────────────────────────
     supa_delete("lineups", f"roster_id=eq.{roster_id}&gameweek_id=eq.{gw}")
 
-    lineup_rows = []
+    lineup_rows: list[dict] = []
     for s in body.starters:
         lineup_rows.append({
             "roster_id": roster_id,
@@ -676,13 +749,23 @@ def submit_lineup(gw: int, body: LineupBody, jwt_payload: dict = Depends(require
             "is_captain": s.is_captain,
             "is_vice": s.is_vice,
         })
-    for b in body.bench:
+    for b in body.subs:
         lineup_rows.append({
             "roster_id": roster_id,
             "gameweek_id": gw,
             "player_id": b.player_id,
-            "slot": "bench",
+            "slot": "sub",
             "bench_order": b.bench_order,
+            "is_captain": False,
+            "is_vice": False,
+        })
+    for pid in unselected_ids:
+        lineup_rows.append({
+            "roster_id": roster_id,
+            "gameweek_id": gw,
+            "player_id": pid,
+            "slot": "unselected",
+            "bench_order": None,
             "is_captain": False,
             "is_vice": False,
         })
@@ -691,8 +774,9 @@ def submit_lineup(gw: int, body: LineupBody, jwt_payload: dict = Depends(require
     return {
         "roster_id": roster_id,
         "gameweek": gw,
-        "starters": len(body.starters),
-        "bench": len(body.bench),
+        "starters": 11,
+        "subs": 3,
+        "unselected": unselected_ids,
         "captain_id": captains[0].player_id,
         "vice_id": vices[0].player_id,
         "formation": f"1-{counts['DF']}-{counts['MF']}-{counts['FW']}",
