@@ -122,6 +122,11 @@ const usePlayers = () => useContext(PlayersContext);
 const BUDGET = 700;
 const SQUAD_RULES = { GK:2, DF:5, MF:6, FW:3 };
 const SQUAD_SIZE = Object.values(SQUAD_RULES).reduce((a,b)=>a+b,0); // 16
+const calcOverall = (starters) => {
+  if (!starters.length) return 0;
+  const avgPrice = starters.reduce((s,p)=>s+(p.pr||0),0) / starters.length;
+  return Math.max(1, Math.min(100, Math.round(((avgPrice - 12) / (155 - 12)) ** 0.7 * 55 + 45)));
+};
 const POS_LABEL = { GK:"GK", DF:"DEF", MF:"MID", FW:"FWD" };
 const FLAG = {
   FRA:"🇫🇷",NOR:"🇳🇴",BRA:"🇧🇷",ARG:"🇦🇷",ENG:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",ESP:"🇪🇸",GER:"🇩🇪",
@@ -817,7 +822,6 @@ function Build({squad,counts,spent,budget,toggle,captain,setCaptain,vice,setVice
     l.sort((a,b)=>sortBy==="pts"?b.pts-a.pts:sortBy==="pr"?b.pr-a.pr:b.own-a.own);
     return l;
   },[posF,search,sortBy]);
-  const avgPts=squad.length?+(squad.reduce((s,id)=>s+(PLAYERS.find(p=>p.id===id)?.pts||0),0)/squad.length).toFixed(1):0;
 
   return (
     <div>
@@ -902,7 +906,7 @@ function Build({squad,counts,spent,budget,toggle,captain,setCaptain,vice,setVice
         </>
       ) : (
         <MySquad squad={squad} captain={captain} setCaptain={setCaptain}
-          vice={vice} setVice={setVice} toggle={toggle} avgPts={avgPts} spent={spent} setTab={setTab}/>
+          vice={vice} setVice={setVice} toggle={toggle} spent={spent} setTab={setTab}/>
       )}
     </div>
   );
@@ -953,7 +957,7 @@ function MarketCard({p,owned,canAdd,reason,onTap}){
   );
 }
 
-function MySquad({squad,captain,setCaptain,vice,setVice,toggle,avgPts,spent,setTab}){
+function MySquad({squad,captain,setCaptain,vice,setVice,toggle,spent,setTab}){
   if(!squad.length) return (
     <div style={{textAlign:"center",padding:"60px 30px",color:C.mute}}>
       <div style={{display:"flex",justifyContent:"center",marginBottom:16,color:C.line}}><Icon name="ball" size={48} stroke={1.6}/></div>
@@ -965,7 +969,6 @@ function MySquad({squad,captain,setCaptain,vice,setVice,toggle,avgPts,spent,setT
     <div style={{padding:"4px 16px 20px"}}>
       <div style={{display:"flex",gap:10,marginBottom:14}}>
         <div style={S.statCard}><div style={S.miniLabel}>SPENT</div><div style={S.statBig}><Icon name="credit" size={18} style={{marginRight:4,verticalAlign:"baseline"}}/>{spent}</div></div>
-        <div style={S.statCard}><div style={S.miniLabel}>AVG FORM</div><div style={{...S.statBig,color:C.orange}}>{avgPts}</div></div>
         <div style={S.statCard}><div style={S.miniLabel}>PLAYERS</div><div style={S.statBig}>{squad.length}/{SQUAD_SIZE}</div></div>
       </div>
       {["GK","DF","MF","FW"].map(pos=>{
@@ -1163,7 +1166,6 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,country
   const PLAYERS=usePlayers();
   const [showKit,setShowKit]=useState(false);
   const [picker,setPicker]=useState(null); // player id being assigned C/V
-  const [projInfo,setProjInfo]=useState(false); // PROJ explainer tooltip
   const starterPlayers=useMemo(()=>starters.map(id=>PLAYERS.find(p=>p.id===id)).filter(Boolean),[starters,PLAYERS]);
   const benchPlayers=useMemo(()=>benchIds.map(id=>PLAYERS.find(p=>p.id===id)).filter(Boolean),[benchIds,PLAYERS]);
   const rows=useMemo(()=>{
@@ -1172,7 +1174,7 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,country
     starterPlayers.forEach(p=>{if(byPos[p.p])byPos[p.p].push(p);});
     return fr.map(({pos,count})=>({pos,players:(byPos[pos]||[]).slice(0,count)}));
   },[starterPlayers,formation]);
-  const total=starterPlayers.reduce((s,p)=>s+(p.pts||0),0).toFixed(0);
+  const overall=calcOverall(starterPlayers);
   const COLORS=["#ff5b1e","#16130f","#e11d48","#2563eb","#16a34a","#9333ea","#0891b2","#eab308","#ffffff","#64748b"];
   const PATTERNS=["blaze","apex","strike","vertex","pinstripe","column","bands","eclipse"];
 
@@ -1257,29 +1259,9 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,country
         {Object.keys(FORMATIONS).map(f=>(
           <button key={f} onClick={()=>setFormation(f)} style={{...S.chip,...(formation===f?S.chipOn:{})}}>{f}</button>
         ))}
-        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,paddingRight:4,flexShrink:0,position:"relative"}}>
-          <span style={{fontSize:11,color:C.mute,fontWeight:600}}>PROJ</span>
-          <button onClick={()=>setProjInfo(v=>!v)} aria-label="What is PROJ?"
-            style={{display:"inline-grid",placeItems:"center",width:16,height:16,borderRadius:"50%",
-              border:`1.5px solid ${C.mute}`,background:"transparent",color:C.mute,cursor:"pointer",
-              fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:10,lineHeight:1,padding:0}}>i</button>
-          <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:18,color:C.orange}}>{total}</span>
-          {projInfo && (
-            <>
-              <div onClick={()=>setProjInfo(false)} style={{position:"fixed",inset:0,zIndex:40}}/>
-              <div style={S.projPop}>
-                <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:13,color:C.ink,marginBottom:5}}>
-                  Projected points
-                </div>
-                <p style={{margin:0,fontSize:12,lineHeight:1.5,color:C.inkSoft}}>
-                  The combined form rating of your 11 starters — an estimate of how many points
-                  this lineup could score. It updates as you swap players or change formation.
-                  Captain and Vice multipliers are applied on matchday.
-                </p>
-                <div style={S.projPopArrow}/>
-              </div>
-            </>
-          )}
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,paddingRight:4,flexShrink:0}}>
+          <span style={{fontSize:11,color:C.mute,fontWeight:600}}>OVERALL</span>
+          <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:18,color:C.orange}}>{overall}</span>
         </div>
       </div>
 
@@ -1815,14 +1797,14 @@ function ShareModal({squad,captain,vice,teamName,jersey,country,onClose}){
     const starterIds=new Set(rows.flatMap(r=>r.players.map(p=>p.id)));
     return players.filter(p=>!starterIds.has(p.id)).slice(0,7);
   },[players,rows]);
-  const total=players.reduce((s,p)=>s+p.pts,0).toFixed(0);
-  const overall=players.length?Math.min(99,Math.round(60+players.reduce((s,p)=>s+p.pts,0)/players.length*0.9)):0;
+  const starterPlayers=useMemo(()=>rows.flatMap(r=>r.players),[rows]);
+  const overall=calcOverall(starterPlayers);
 
   function copyLink(){
     try{ navigator.clipboard?.writeText("https://"+AFFILIATE); }catch(e){}
     setCopied(true); setTimeout(()=>setCopied(false),1800);
   }
-  const tweet=`I just built my @Fantaball World Cup squad 🔥 ${total} projected pts. Build yours and win SOL 👉 https://${AFFILIATE}`;
+  const tweet=`I just built my @Fantaball World Cup squad 🔥 Overall ${overall}/100. Build yours and win SOL 👉 https://${AFFILIATE}`;
 
   return (
     <div style={S.modalBackdrop} onClick={onClose} className="app-modal-backdrop">
@@ -1890,7 +1872,7 @@ function ShareModal({squad,captain,vice,teamName,jersey,country,onClose}){
               <div style={{marginTop:12}}>
                 <div style={{fontSize:9,color:"#ffffff77",letterSpacing:1.5,fontWeight:700}}>TEAM OVERALL</div>
                 <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:42,color:C.orange,lineHeight:1}}>
-                  {overall}<span style={{fontSize:14,color:"#ffffff55"}}>/99</span>
+                  {overall}<span style={{fontSize:14,color:"#ffffff55"}}>/100</span>
                 </div>
               </div>
               <div style={{marginTop:10}}>
@@ -3563,11 +3545,6 @@ const S={
     color:C.ink,fontSize:15,fontFamily:"'Inter',sans-serif",outline:"none",marginBottom:4},
   marketStick:{position:"sticky",top:56,zIndex:18,background:C.paper,paddingTop:8,
     borderBottom:`1px solid ${C.line}`,boxShadow:"0 6px 12px -8px rgba(0,0,0,.12)"},
-  projPop:{position:"absolute",top:"calc(100% + 10px)",right:0,zIndex:41,width:248,
-    background:C.card,border:`1px solid ${C.line}`,borderRadius:12,padding:"12px 14px",
-    boxShadow:"0 12px 30px -8px rgba(0,0,0,.25)"},
-  projPopArrow:{position:"absolute",top:-6,right:14,width:11,height:11,background:C.card,
-    borderLeft:`1px solid ${C.line}`,borderTop:`1px solid ${C.line}`,transform:"rotate(45deg)"},
   filterScroll:{display:"flex",gap:8,padding:"10px 16px",overflowX:"auto",WebkitOverflowScrolling:"touch"},
   chip:{flexShrink:0,padding:"8px 16px",borderRadius:20,border:`1.5px solid ${C.line}`,background:C.card,color:C.mute,
     fontFamily:"'Archivo Narrow',sans-serif",fontWeight:700,fontSize:13,letterSpacing:.5,cursor:"pointer",whiteSpace:"nowrap"},
