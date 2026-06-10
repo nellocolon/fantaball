@@ -16,19 +16,7 @@ export const PLAYERS = compact;
 
 // shape used by the UI: {id, n, t, p, c, pr, num, pts?, own?}
 export async function getPlayers() {
-  if (HAS_SUPABASE) {
-    const { data, error } = await supabase
-      .from("players")
-      .select("id, name, team, position, club, price, number")
-      .order("price", { ascending: false });
-    if (error) throw error;
-    // map DB columns -> UI schema. Extra fields (pts, own) will be enriched from PLAYERS where available.
-    return data.map((r) => ({
-      id: r.id, n: r.name, t: r.team, p: r.position,
-      c: r.club, pr: Number(r.price), num: r.number,
-    }));
-  }
-  return PLAYERS; // real bundled player data
+  return PLAYERS; // canonical 1248-player dataset — fixed for the tournament, no DB query needed
 }
 
 export async function getTeams() {
@@ -289,6 +277,18 @@ export async function getBracket() {
 export async function getBounties() {
   try { return (await publicApi.getBounties()) || []; }
   catch (e) { console.warn("getBounties:", e?.message || e); return []; }
+}
+
+export async function getMyCountry(userId) {
+  if (!HAS_SUPABASE || !userId) return null;
+  const { data } = await supabase.from("users").select("country_code").eq("id", userId).maybeSingle();
+  return data?.country_code || null;
+}
+
+export async function saveCountry(userId, code) {
+  if (!HAS_SUPABASE || !userId) return;
+  const { error } = await supabase.from("users").update({ country_code: code }).eq("id", userId);
+  if (error) throw error;
 }
 
 export { HAS_SUPABASE };

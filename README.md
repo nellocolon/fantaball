@@ -52,6 +52,7 @@ Two principles shape every rule:
 - Scoring is **hybrid**: it runs live while matches are in progress and is **frozen** when the gameweek closes.
 - The tournament is split into **8 fantasy gameweeks** mapped to the competition stages — for the World Cup: group matchdays (GW1–3), Round of 32 (GW4), Round of 16 (GW5), Quarter-finals (GW6), Semi-finals (GW7), Final (GW8).
 - The complete points table lives in [`docs/`](docs/).
+- **Late registration:** you can join until the last group-stage matchday. For each group-stage matchday already played, you receive the *floor* score for that matchday — the lowest score posted by a team that fielded 11 rated players.
 
 ### Leaderboard & payout
 - A single cumulative leaderboard ranks every manager for the whole tournament.

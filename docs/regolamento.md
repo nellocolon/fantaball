@@ -234,4 +234,12 @@ Capitano ×2 · Vice ×1,5 (solo se il capitano non gioca) · floor a 0 sul tota
 
 ---
 
+## 13. Iscrizione tardiva
+
+Ci si può iscrivere fino all'ultima giornata della fase a gironi. Per ogni giornata di gironi già disputata, all'utente viene accreditato un punteggio di default pari al **floor** di quella giornata: il punteggio più basso ottenuto da una squadra che ha schierato 11 giocatori con voto.
+
+Esempio: se nella 1ª giornata il punteggio minimo tra le squadre con 11 giocatori votati è 80, chi si iscrive dopo riceve 80 punti per quella giornata.
+
+---
+
 *Tutti gli eventi sono ricavati da un'unica fonte (API-Football). Ogni punteggio è ricostruibile in automatico e verificabile evento per evento.*

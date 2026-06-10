@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, createContext, useContext } from "react";
 import { toPng } from "html-to-image";
-import { getPlayers, getLeaderboard, saveRoster, getMyRoster, saveLineup, getLineup, getFixtures, getScorers, getAssists, getCards, getStandings, getBracket, getBounties, HAS_SUPABASE, computeFormationLock, PLAYERS } from "./lib/data";
+import { getPlayers, getLeaderboard, saveRoster, getMyRoster, saveLineup, getLineup, getFixtures, getScorers, getAssists, getCards, getStandings, getBracket, getBounties, HAS_SUPABASE, computeFormationLock, PLAYERS, getMyCountry, saveCountry } from "./lib/data";
+import { COUNTRIES } from "./lib/countries";
 import { initAuth, onAuthChange, signInWithX, signOut, connectWallet } from "./lib/auth";
 import { supabase } from "./lib/supabase";
 
@@ -157,6 +158,7 @@ export default function App(){
   const [captain,setCaptain]=useState(null);
   const [vice,setVice]=useState(null);
   const [teamName,setTeamName]=useState("DEGEN FC");
+  const [country,setCountry]=useState("");
   const [jersey,setJersey]=useState({primary:"#ff5b1e",secondary:"#16130f",accent:"#ffffff",pattern:"blaze"});
   const [shareOpen,setShareOpen]=useState(false);
   const [showDexPopup,setShowDexPopup]=useState(false);
@@ -348,6 +350,7 @@ export default function App(){
         if(d.vice!=null) setVice(d.vice);
         if(d.teamName) setTeamName(d.teamName);
         if(d.jersey) setJersey(d.jersey);
+        if(d.country) setCountry(d.country);
       }
     }catch(e){}
 
@@ -385,6 +388,8 @@ export default function App(){
           if(lineup.captainId != null) setCaptain(lineup.captainId);
           if(lineup.viceId != null) setVice(lineup.viceId);
         }
+        const c = await getMyCountry(authUser.id);
+        if(alive && c) setCountry(c);
       }catch(e){
         console.warn("load roster/lineup failed (kept local/defaults):", e?.message||e);
       }
@@ -395,7 +400,7 @@ export default function App(){
 
   // save draft locally whenever it changes; sync to Supabase if logged in
   useEffect(()=>{
-    try{ localStorage.setItem("ftb_draft",JSON.stringify({squad,captain,vice,teamName,jersey})); }catch(e){}
+    try{ localStorage.setItem("ftb_draft",JSON.stringify({squad,captain,vice,teamName,jersey,country})); }catch(e){}
     const u = (typeof window!=="undefined" && window.__FTB_USER) || null;
     if(HAS_SUPABASE && u?.id && squad.length){
       const picks=squad.map(id=>{const p=players.find(x=>x.id===id);return {id,pr:p?.pr||0};});
@@ -498,7 +503,7 @@ export default function App(){
     }
   }
   const ctx={squad,setSquad,captain,setCaptain,vice,setVice,spent,counts,budget,toggle,setTab,
-    teamName,setTeamName,jersey,setJersey,shareOpen,setShareOpen,
+    teamName,setTeamName,country,setCountry,jersey,setJersey,shareOpen,setShareOpen,
     formation,setFormation,starters,benchIds,promote,setCap,setVc,
     swapPlayers, authUser, GW, formationLock};
 
@@ -1153,7 +1158,7 @@ function LockBanner({compact=false, status}){
   );
 }
 
-function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,setShareOpen,
+function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,country,setCountry,setShareOpen,
   formation,setFormation,starters,benchIds,promote,setCap,setVc, swapPlayers, authUser, GW, spent, formationLock}){
   const PLAYERS=usePlayers();
   const [showKit,setShowKit]=useState(false);
@@ -1301,6 +1306,21 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,setShar
               <div style={S.miniLabel}>TEAM NAME</div>
               <input value={teamName} onChange={e=>setTeamName(e.target.value.slice(0,18))}
                 style={S.kitNameInput} maxLength={18}/>
+              <div style={{...S.miniLabel,marginTop:10}}>YOUR NATION</div>
+              <select
+                value={country}
+                onChange={e=>{
+                  const code=e.target.value;
+                  setCountry(code);
+                  if(authUser?.id) saveCountry(authUser.id,code).catch(err=>console.warn("saveCountry:",err?.message||err));
+                }}
+                style={{...S.kitNameInput,cursor:"pointer",marginTop:3}}
+              >
+                <option value="">Select your country…</option>
+                {COUNTRIES.map(({code,name})=>(
+                  <option key={code} value={code}>{name}</option>
+                ))}
+              </select>
             </div>
           </div>
           <div style={S.miniLabel}>PRIMARY</div>
@@ -1970,12 +1990,14 @@ function Quests(){
   // (table `bounties`) so they can be activated WITHOUT a code push: set go_url +
   // active=true there and a bounty flips from SOON to ENTER. Demo fallback below.
   const DEMO_QUESTS=[
+    {id:7,cat:"REACH",title:"Referral Bounty",desc:"Refer 50 team registrations and earn 2 SOL. A referral counts when your invitee connects their wallet, links their X account, and holds at least $25 in $FANTABALL.",reward:2,deliver:"50 valid referrals tracked on your unique invite link · each verified: wallet + X + $25 in $FANTABALL",goUrl:null},
     {id:1,cat:"REACH",title:"Spotlight Stream",desc:"Run a sports/trading livestream with the $FANTABALL ticker banner on screen the whole time.",reward:1,deliver:"Public VOD ≥30 min · ticker readable throughout · avg viewers ≥ threshold",goUrl:null},
     {id:2,cat:"REACH",title:"Viral Post",desc:"Post about Fantaball on X and pass 20,000 real views.",reward:1,deliver:"Post link + analytics screenshot showing ≥20k views + $FANTABALL tag",goUrl:null},
     {id:3,cat:"REACH",title:"TikTok Drop",desc:"Make a TikTok explaining the project with the ticker visible on screen.",reward:1,deliver:"TikTok link + view count ≥ threshold + ticker visible",goUrl:null},
     {id:4,cat:"REACH",title:"Thread of the Week",desc:"Write an explainer thread on the project or its mechanics that passes the engagement bar.",reward:0.5,deliver:"Thread link + impressions screenshot ≥ threshold",goUrl:null},
     {id:5,cat:"LADDER",title:"Bracket Oracle · R16",desc:"Predict the most correct results of the Round of 16. One winner takes it.",reward:0.5,deliver:"Completed bracket before kickoff + correct count",goUrl:null},
     {id:6,cat:"LADDER",title:"Man of the Matchday",desc:"Highest single-matchday score across all managers. Resets every matchday.",reward:0.3,deliver:"Score screenshot + public profile link",goUrl:null},
+    {id:8,cat:"LADDER",title:"Nation Builder",desc:"Pick your country and rep it. Nations compete for the biggest Fantaball community — cumulative points across all their members.",reward:null,deliver:"Coming soon: nation leaderboards, cumulative scoring, exclusive rewards for the winning country",goUrl:null},
   ];
   const [QUESTS,setQUESTS]=useState(DEMO_QUESTS);
   useEffect(()=>{
@@ -2361,6 +2383,7 @@ function About({setTab}){
     ["Can I change my team?","Your 16-man squad is set with a budget of 888 credits. You pick 11 starters each matchday and can make transfers between tournament stages."],
     ["What happens after the World Cup?","The platform continues. The World Cup is our launch tournament — Premier League is the next chapter, then more leagues. Same token, same platform."],
     ["Can I earn without being a top player?","Yes. 30% of fees fund bounties on pump.fun GO — stream, post, or predict to earn SOL. Each bounty pays one winner (pump.fun decides), but every entry helps grow the project."],
+    ["Can I join after the World Cup has started?","Yes — you can register until the last group-stage matchday. For each group-stage matchday already played, you'll receive a default score equal to that matchday's floor: the lowest score posted by a team that fielded 11 players who earned a rating. Example: if the lowest score among full teams on matchday 1 was 80, late joiners get 80 points for that matchday."],
   ];
 
   return (
@@ -2598,6 +2621,7 @@ function About({setTab}){
           ["NEXT","Learn & iterate","","We use the tournament to refine scoring, UX and the payout flow. Community feedback shapes what ships.",false],
           ["S02","Premier League 26/27","","Fantasy goes weekly across a full domestic season — recurring matchdays, a pool that refills every week.",false],
           ["S03","Champions League","","Europe's biggest midweek stage. Knockout drama, the best clubs, a fresh competition on the same platform.",false],
+          ["S04","NBA","","Fantasy goes courtside. The same platform expands beyond football — daily basketball matchups, a fresh scoring model, same token.",false],
           ["LATER","More modes","","Head-to-head, seasonal cosmetics, deeper stats. One platform, many competitions, one token.",false],
         ].map(([tag,title,state,desc],i,arr)=>(
           <div key={title} style={{display:"flex",gap:14}}>
