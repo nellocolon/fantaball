@@ -535,7 +535,7 @@ export default function App(){
       </main>
       <TabBar tab={tab} setTab={setTab} squadCount={squad.length}/>
       {shareOpen && <ShareModal squad={squad} captain={captain} vice={vice}
-        teamName={teamName} jersey={jersey} onClose={()=>setShareOpen(false)}/>}
+        teamName={teamName} jersey={jersey} country={country} onClose={()=>setShareOpen(false)}/>}
       {tab === "build" && showDexPopup && <DexPopup onClose={()=>setShowDexPopup(false)} />}
       {loginOpen && <LoginSheet 
         authUser={authUser} 
@@ -1778,7 +1778,12 @@ function PrizeTableInline({board}){
     </div>
   );
 }
-function ShareModal({squad,captain,vice,teamName,jersey,onClose}){
+function countryToFlag(code){
+  return code
+    ? code.toUpperCase().replace(/./g,c=>String.fromCodePoint(127397+c.charCodeAt()))
+    : "";
+}
+function ShareModal({squad,captain,vice,teamName,jersey,country,onClose}){
   const PLAYERS=usePlayers();
   const [formation,setFormation]=useState("4-3-3");
   const [copied,setCopied]=useState(false);
@@ -1838,6 +1843,20 @@ function ShareModal({squad,captain,vice,teamName,jersey,onClose}){
         <div style={S.poster} id="flex-card">
           <div style={S.posterGlow} aria-hidden/>
 
+          {/* COUNTRY BADGE — below top bar, top-right of hero */}
+          {country && (
+            <div style={{position:"absolute",top:48,right:12,zIndex:10,
+              display:"flex",alignItems:"center",gap:4,
+              padding:"3px 8px",borderRadius:7,
+              background:"rgba(0,0,0,.5)",border:"1px solid #ffffff14",
+              backdropFilter:"blur(4px)"}}>
+              <span style={{fontSize:7,color:"#ffffff55",fontWeight:700,letterSpacing:1.1,fontFamily:"'Archivo Narrow',sans-serif"}}>PLAYING FOR ·</span>
+              <span style={{fontSize:7.5,color:C.orange,fontWeight:700,letterSpacing:.4,fontFamily:"'Archivo',sans-serif"}}>
+                {countryToFlag(country)} {country.toUpperCase()}
+              </span>
+            </div>
+          )}
+
           {/* TOP BAR */}
           <div style={S.posterTop}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -1874,16 +1893,10 @@ function ShareModal({squad,captain,vice,teamName,jersey,onClose}){
                   {overall}<span style={{fontSize:14,color:"#ffffff55"}}>/99</span>
                 </div>
               </div>
-              <div style={{marginTop:10,display:"flex",gap:14}}>
-                <div>
-                  <div style={{fontSize:9,color:"#ffffff77",letterSpacing:1,fontWeight:700}}>VALUE</div>
-                  <div style={{display:"flex",alignItems:"center",gap:4,fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:"#fff"}}>
-                    <Icon name="credit" size={13} style={{color:C.orange}}/>888
-                  </div>
-                </div>
-                <div>
-                  <div style={{fontSize:9,color:"#ffffff77",letterSpacing:1,fontWeight:700}}>PROJ PTS</div>
-                  <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:"#fff"}}>{total}</div>
+              <div style={{marginTop:10}}>
+                <div style={{fontSize:9,color:"#ffffff77",letterSpacing:1,fontWeight:700}}>VALUE</div>
+                <div style={{display:"flex",alignItems:"center",gap:4,fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:"#fff"}}>
+                  <Icon name="credit" size={13} style={{color:C.orange}}/>888
                 </div>
               </div>
               {capP && (
@@ -1910,7 +1923,7 @@ function ShareModal({squad,captain,vice,teamName,jersey,onClose}){
               <rect x="105" y="326" width="130" height="48" fill="none" stroke="#fff" strokeWidth="1" opacity=".25"/>
             </svg>
             <div style={{position:"relative",zIndex:1,height:"100%",display:"flex",flexDirection:"column",
-              justifyContent:"space-around",padding:"12px 4px"}}>
+              justifyContent:"space-between",padding:"24px 4px 18px"}}>
               {rows.map(({pos,players},ri)=>(
                 <div key={ri} style={{display:"flex",justifyContent:"space-around",alignItems:"center"}}>
                   {players.length>0
@@ -1940,14 +1953,40 @@ function ShareModal({squad,captain,vice,teamName,jersey,onClose}){
 
           {/* FOOTER */}
           <div style={S.posterFooter}>
-            <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <span style={{color:C.orange,display:"inline-flex"}}><Icon name="credit" size={13}/></span>
-              <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:10,color:"#fff",letterSpacing:.5}}>
-                FANTA<span style={{color:C.orange}}>BALL</span>
-              </span>
+            {/* Brand + slogan */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{color:C.orange,display:"inline-flex"}}><Icon name="credit" size={13}/></span>
+                <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:10,color:"#fff",letterSpacing:.5}}>
+                  FANTA<span style={{color:C.orange}}>BALL</span>
+                </span>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:9.5,color:"#fff",letterSpacing:.3,lineHeight:1.3}}>
+                  BUILD YOUR SQUAD. OWN THE WORLD CUP.
+                </div>
+                <div style={{fontSize:8,color:"#ffffff66",letterSpacing:.5,fontWeight:600,marginTop:2}}>
+                  OWN YOUR TEAM · COMPETE · EARN
+                </div>
+              </div>
             </div>
-            <span style={{fontSize:9.5,color:"#ffffff88",letterSpacing:.3,fontWeight:600}}>OWN YOUR TEAM · COMPETE · EARN</span>
-            <span style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:9.5,color:C.orange}}>{AFFILIATE}</span>
+            {/* Referral box */}
+            <div style={{width:"100%",background:"rgba(255,91,30,.08)",border:"1px solid rgba(255,91,30,.25)",
+              borderRadius:12,padding:"8px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div>
+                <div style={{fontSize:7.5,color:"#ffffff55",fontWeight:700,letterSpacing:1.2,fontFamily:"'Archivo Narrow',sans-serif",marginBottom:2}}>
+                  JOIN &amp; COMPETE
+                </div>
+                <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:10,color:C.orange,letterSpacing:.3}}>
+                  {AFFILIATE}
+                </div>
+              </div>
+              {/* QR placeholder — implement later */}
+              <div style={{width:32,height:32,borderRadius:6,border:"1px dashed rgba(255,91,30,.3)",
+                display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <Icon name="qr" size={14} style={{color:"rgba(255,91,30,.4)"}}/>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -3647,8 +3686,8 @@ const S={
   posterPitch:{position:"relative",margin:"8px 12px",height:300,borderRadius:12,overflow:"hidden",
     background:"linear-gradient(180deg,#1c160f,#100c08)"},
   benchRow:{position:"relative",zIndex:2,padding:"4px 14px 10px"},
-  posterFooter:{position:"relative",zIndex:2,display:"flex",alignItems:"center",justifyContent:"space-between",
-    gap:8,padding:"10px 14px",borderTop:"1px solid #ffffff10",flexWrap:"wrap"},
+  posterFooter:{position:"relative",zIndex:2,display:"flex",flexDirection:"column",
+    gap:0,padding:"10px 14px 12px",borderTop:"1px solid #ffffff10"},
 
   // AI GENERATOR
 
