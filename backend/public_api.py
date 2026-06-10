@@ -592,7 +592,7 @@ def create_roster(body: RosterBody, jwt_payload: dict = Depends(require_user)):
     if r_ups.status_code >= 300:
         raise HTTPException(
             409 if r_ups.status_code == 409 else 502,
-            f"Errore salvataggio giocatori ({r_ups.status_code}): {r_ups.text[:200]}",
+            f"Failed to save players ({r_ups.status_code}): {r_ups.text[:200]}",
         )
 
     return {

@@ -1202,7 +1202,7 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,setShar
   async function handleSaveFormation(){
     if (isLocked) {
       setSaveStatus("error");
-      setSaveError("Formazioni bloccate — nessuna modifica consentita");
+      setSaveError("Formations locked — no changes allowed");
       setTimeout(()=>{ setSaveStatus(null); setSaveError(null); }, 1600);
       return;
     }
@@ -1211,15 +1211,15 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,setShar
     const bench = squad.filter(id=>!starters.includes(id));
     if(!starters.length || starters.length>11){
       setSaveStatus("error");
-      setSaveError("Seleziona 11 titolari prima di salvare");
+      setSaveError("Select 11 starters before saving");
       setTimeout(()=>{ setSaveStatus(null); setSaveError(null); }, 2200);
       return;
     }
     if(!captain || !vice){
       setSaveStatus("error");
-      setSaveError(!captain && !vice ? "Imposta capitano e vice prima di salvare"
-                   : !captain ? "Imposta il capitano prima di salvare"
-                   : "Imposta il vice prima di salvare");
+      setSaveError(!captain && !vice ? "Set captain and vice-captain before saving"
+                   : !captain ? "Set a captain before saving"
+                   : "Set a vice-captain before saving");
       setTimeout(()=>{ setSaveStatus(null); setSaveError(null); }, 3000);
       return;
     }
@@ -1240,7 +1240,7 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,setShar
     }catch(e){
       console.warn("saveFormation:",e?.message||e);
       setSaveStatus("error");
-      setSaveError(e?.message || "Errore sconosciuto — riprova");
+      setSaveError(e?.message || "Unknown error — please try again");
       setTimeout(()=>{ setSaveStatus(null); setSaveError(null); },3500);
     }
   }
