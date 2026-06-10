@@ -19,6 +19,42 @@ a { -webkit-tap-highlight-color: transparent; }
   }
 }
 
+/* ── Shell max-width: 480px mobile, 1080px desktop ── */
+.app-shell  { max-width: 480px; }
+.app-tabbar { max-width: 480px; }
+
+@media (min-width: 900px) {
+  .app-shell  { max-width: 1080px; }
+  .app-tabbar { max-width: 1080px; }
+
+  /* Horizontal scroll rows → wrap on desktop */
+  .hscroll {
+    flex-wrap: wrap;
+    overflow-x: visible !important;
+  }
+
+  /* Bracket: keep as single tree but centred; scroll if wider than container */
+  .bracket-scroll {
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+  }
+
+  /* Player market list → 2-column grid */
+  .player-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* Modali → centrate, non bottom-sheet */
+  .app-modal-backdrop { align-items: center !important; }
+  .app-modal {
+    max-width: 560px !important;
+    border-radius: 22px !important;
+  }
+}
+
 /* Rulebook table cells */
 table td { padding: 8px 0; border-bottom: 1px solid #e8e2d8; }
 table td:last-child { text-align: right; font-family: 'Archivo', sans-serif; font-weight: 800; color: #ff5b1e; white-space: nowrap; padding-left: 12px; }

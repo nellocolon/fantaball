@@ -509,7 +509,7 @@ export default function App(){
 
   return (
     <PlayersContext.Provider value={players}>
-    <div style={S.app}>
+    <div style={S.app} className="app-shell">
       <Fonts/>
       <TopBar authUser={authUser} onLogin={()=>setLoginOpen(true)}/>
       {/* Loading message shown only during the OAuth return redirect (after X/Supabase sends us back).
@@ -697,8 +697,8 @@ function LoginSheet({authUser, onClose, authReturning = false, callbackError = "
   const shortW = wallet ? wallet.slice(0,4)+"…"+wallet.slice(-4) : null;
 
   return (
-    <div style={S.modalBackdrop} onClick={onClose}>
-      <div style={S.modalSheet} onClick={e=>e.stopPropagation()}>
+    <div style={S.modalBackdrop} onClick={onClose} className="app-modal-backdrop">
+      <div style={S.modalSheet} onClick={e=>e.stopPropagation()} className="app-modal">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:20,color:C.ink}}>Sign in to play</div>
           <button onClick={onClose} style={S.iconBtn}><Icon name="x" size={18}/></button>
@@ -890,7 +890,7 @@ function Build({squad,counts,spent,budget,toggle,captain,setCaptain,vice,setVice
               </div>
             </div>
           </div>
-          <div style={{padding:"4px 16px 20px"}}>
+          <div style={{padding:"4px 16px 20px"}} className="player-list">
             {list.map(p=>{
               const owned=squad.includes(p.id);
               const can=affordable(p);
@@ -1253,7 +1253,7 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,country
   return (
     <div style={{padding:"14px 16px 24px"}}>
       <LockBanner status={formationLock}/>
-      <div style={S.filterScroll}>
+      <div style={S.filterScroll} className="hscroll">
         {Object.keys(FORMATIONS).map(f=>(
           <button key={f} onClick={()=>setFormation(f)} style={{...S.chip,...(formation===f?S.chipOn:{})}}>{f}</button>
         ))}
@@ -1436,7 +1436,7 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,country
       {benchPlayers.length>0 && (
         <div style={{marginTop:14, opacity: isLocked ? 0.6 : 1}}>
           <div style={S.sectionLabel}>{isLocked ? "BENCH (locked — editing disabled)" : "BENCH · tap to select for swap (same role)"}</div>
-          <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4}}>
+          <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4}} className="hscroll">
             {benchPlayers.map((p,i)=>{
               const isSub = i < 3;
               const isSelected = swapSel.includes(p.id);
@@ -1476,8 +1476,8 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,country
 
       {/* captain / vice picker */}
       {picker && (()=>{ const pp=starterPlayers.find(x=>x.id===picker); if(!pp) return null; return (
-        <div style={S.modalBackdrop} onClick={()=>setPicker(null)}>
-          <div style={{...S.modalSheet,paddingBottom:24}} onClick={e=>e.stopPropagation()}>
+        <div style={S.modalBackdrop} onClick={()=>setPicker(null)} className="app-modal-backdrop">
+          <div style={{...S.modalSheet,paddingBottom:24}} onClick={e=>e.stopPropagation()} className="app-modal">
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
               <JerseyShirt {...jersey} num={pp.num} size={44}/>
               <div style={{flex:1}}>
@@ -1825,14 +1825,14 @@ function ShareModal({squad,captain,vice,teamName,jersey,country,onClose}){
   const tweet=`I just built my @Fantaball World Cup squad 🔥 ${total} projected pts. Build yours and win SOL 👉 https://${AFFILIATE}`;
 
   return (
-    <div style={S.modalBackdrop} onClick={onClose}>
-      <div style={S.modalSheet} onClick={e=>e.stopPropagation()}>
+    <div style={S.modalBackdrop} onClick={onClose} className="app-modal-backdrop">
+      <div style={S.modalSheet} onClick={e=>e.stopPropagation()} className="app-modal">
         <div style={{display:"flex",alignItems:"center",marginBottom:12}}>
           <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:18,color:C.ink}}>YOUR SQUAD CARD</div>
           <button onClick={onClose} style={{...S.iconBtn,marginLeft:"auto"}}><Icon name="x" size={18}/></button>
         </div>
 
-        <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto"}}>
+        <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto"}} className="hscroll">
           {Object.keys(FORMATIONS).map(f=>(
             <button key={f} onClick={()=>setFormation(f)}
               style={{...S.chip,flexShrink:0,...(formation===f?S.chipOn:{})}}>{f}</button>
@@ -2079,7 +2079,7 @@ function Quests(){
       </div>
 
       {/* filters */}
-      <div style={S.filterScroll}>
+      <div style={S.filterScroll} className="hscroll">
         {cats.map(c=>(
           <button key={c} onClick={()=>setFilter(c)} style={{...S.chip,flexShrink:0,...(filter===c?S.chipOn:{})}}>
             {c}
@@ -3101,7 +3101,7 @@ function StatsPlayers({mySet}){
             color:C.orangeDeep,background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"'Archivo',sans-serif"}}>✕ clear</button>}
         </div>
         <div ref={nationScrollRef} onScroll={syncNationThumb}
-          style={{display:"flex",gap:7,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
+          style={{display:"flex",gap:7,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}} className="hscroll">
           <button onClick={()=>setNation("ALL")} style={{flexShrink:0,padding:"7px 14px",borderRadius:10,cursor:"pointer",
             border:`1.5px solid ${nation==="ALL"?C.ink:C.line}`,background:nation==="ALL"?C.ink:C.card,
             color:nation==="ALL"?"#fff":C.mute,fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:12.5}}>All</button>
@@ -3293,7 +3293,7 @@ function StatsBracket(){
   return (
     <div>
       <div ref={scrollRef} onScroll={syncThumb}
-        style={{overflowX:"auto",WebkitOverflowScrolling:"touch",margin:"0 -16px",padding:"4px 16px 10px"}}>
+        style={{overflowX:"auto",WebkitOverflowScrolling:"touch",margin:"0 -16px",padding:"4px 16px 10px"}} className="bracket-scroll">
         <div style={{position:"relative",width:treeW,height:totalH+LABEL_H}}>
           {rounds.map(([round],r)=>(
             <div key={"l"+round} style={{position:"absolute",top:0,left:r*(COL_W+COL_GAP),width:COL_W,textAlign:"center",
@@ -3482,7 +3482,7 @@ function Stats({squad}){
         <h1 style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:28,color:C.ink,margin:0,letterSpacing:-.5}}>Stats</h1>
         <p style={{fontSize:13,color:C.mute,margin:"3px 0 0"}}>World Cup 2026 · live data</p>
       </div>
-      <div style={{display:"flex",gap:8,overflowX:"auto",padding:"14px 16px 12px"}}>
+      <div style={{display:"flex",gap:8,overflowX:"auto",padding:"14px 16px 12px"}} className="hscroll">
         {sections.map(s=>(
           <button key={s.k} onClick={()=>setSection(s.k)} style={{flexShrink:0,padding:"10px 16px",borderRadius:12,cursor:"pointer",
             border:`1.5px solid ${section===s.k?C.orange:C.line}`,background:section===s.k?C.orange:C.card,
@@ -3510,7 +3510,7 @@ function TabBar({tab,setTab,squadCount}){
     {k:"about",label:"Info",icon:"info"},
   ];
   return (
-    <nav style={S.tabbar}>
+    <nav style={S.tabbar} className="app-tabbar">
       {tabs.map(({k,label,icon})=>(
         <button key={k} onClick={()=>setTab(k)} style={{...S.tabBtn,...(tab===k?S.tabBtnOn:{})}}>
           <span style={{position:"relative",display:"inline-flex"}}>
@@ -3525,7 +3525,7 @@ function TabBar({tab,setTab,squadCount}){
 }
 
 const S={
-  app:{minHeight:"100vh",background:C.paper,color:C.ink,maxWidth:480,margin:"0 auto",
+  app:{minHeight:"100vh",background:C.paper,color:C.ink,margin:"0 auto",
     position:"relative",fontFamily:"'Inter',system-ui,sans-serif",paddingBottom:72},
   main:{minHeight:"calc(100vh - 130px)"},
   topbar:{position:"sticky",top:0,zIndex:30,height:56,display:"flex",alignItems:"center",
@@ -3761,7 +3761,7 @@ const S={
     background:"#ffffff1a",border:"1px solid #ffffff33",borderRadius:10,color:"#fff",
     textDecoration:"none",fontFamily:"'Archivo',sans-serif",fontWeight:700,fontSize:12,letterSpacing:.2},
 
-  tabbar:{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,zIndex:40,
+  tabbar:{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",zIndex:40,
     height:64,display:"flex",background:"rgba(255,255,255,.96)",backdropFilter:"blur(14px)",borderTop:`1px solid ${C.line}`},
   tabBtn:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,
     border:"none",background:"none",color:C.mute,cursor:"pointer",padding:"8px 0",minWidth:0},
