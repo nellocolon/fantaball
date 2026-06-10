@@ -1934,22 +1934,6 @@ function ShareModal({squad,captain,vice,teamName,jersey,country,onClose}){
             </div>
           </div>
 
-          {/* BENCH */}
-          {bench.length>0 && (
-            <div style={S.benchRow}>
-              <div style={{fontSize:9,color:"#ffffff66",letterSpacing:1.5,fontWeight:700,marginBottom:6}}>BENCH</div>
-              <div style={{display:"flex",gap:8,overflowX:"auto"}}>
-                {bench.map(p=>(
-                  <div key={p.id} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,flexShrink:0,width:46}}>
-                    <JerseyShirt {...jersey} num={p.num} size={30}/>
-                    <span style={{fontSize:8.5,color:"#fff",fontWeight:700,fontFamily:"'Archivo Narrow',sans-serif",
-                      whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:46}}>{p.n}</span>
-                    <span style={{fontSize:7.5,color:"#ffffff66",letterSpacing:.5}}>{POS_LABEL[p.p]}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* FOOTER */}
           <div style={S.posterFooter}>
@@ -3683,7 +3667,7 @@ const S={
   teamPanel:{flex:1,minWidth:0},
   capDot:{display:"inline-grid",placeItems:"center",width:14,height:14,borderRadius:"50%",
     background:C.orange,color:"#fff",fontSize:8,fontWeight:900,fontFamily:"'Archivo',sans-serif"},
-  posterPitch:{position:"relative",margin:"8px 12px",height:300,borderRadius:12,overflow:"hidden",
+  posterPitch:{position:"relative",margin:"8px 12px",height:380,borderRadius:12,overflow:"hidden",
     background:"linear-gradient(180deg,#1c160f,#100c08)"},
   benchRow:{position:"relative",zIndex:2,padding:"4px 14px 10px"},
   posterFooter:{position:"relative",zIndex:2,display:"flex",flexDirection:"column",
