@@ -160,7 +160,8 @@
   .ms .ct{font-family:'Archivo';font-weight:900;font-size:17px;color:var(--orange)}
   .ms .ct span{font-size:11px;color:var(--mute);font-weight:700;margin-left:3px}
 
-  /* ── RIGHT: on-chain dashboard + notifications ── */
+  /* ── RIGHT: on-chain dashboard ── */
+  /* .notif panel hidden — live feed not yet wired (recent_shares/locks always empty from backend) */
   .col-right{position:absolute;right:40px;top:150px;width:360px;display:flex;flex-direction:column;gap:16px}
   .chain{background:var(--panel);border:1px solid var(--panel-line);border-radius:18px;padding:18px 20px;
     backdrop-filter:blur(8px)}
@@ -173,23 +174,9 @@
   .cell .chg{font-size:11px;font-weight:800;margin-top:3px}
   .chg.up{color:var(--good)} .chg.down{color:var(--bad)}
 
-  .notif{flex:1;background:var(--panel);border:1px solid var(--panel-line);border-radius:18px;
-    padding:18px 20px;backdrop-filter:blur(8px);overflow:hidden;display:flex;flex-direction:column}
-  .notif .hd{font-family:'Archivo Narrow';font-weight:800;letter-spacing:2.5px;font-size:12px;color:var(--mute);
-    margin-bottom:12px;display:flex;align-items:center;gap:8px}
-  .feed{display:flex;flex-direction:column;gap:9px;overflow:hidden}
-  .card{display:flex;align-items:flex-start;gap:11px;background:rgba(255,255,255,.04);
-    border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:11px 13px;
-    animation:slidein .5s cubic-bezier(.2,.8,.2,1)}
-  .card.x{border-color:rgba(255,91,30,.4);background:rgba(255,91,30,.08)}
-  @keyframes slidein{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:translateX(0)}}
-  .card .ci{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex-shrink:0;
-    background:rgba(255,255,255,.08)}
-  .card.x .ci{background:var(--orange);color:#fff}
-  .card .body{flex:1;min-width:0}
-  .card .body .t{font-size:13px;font-weight:600;line-height:1.35;color:#fff}
-  .card .body .t b{font-weight:800;color:var(--orange)}
-  .card .body .ago{font-size:10px;color:var(--mute);font-weight:700;margin-top:2px;letter-spacing:.5px}
+  .notif{display:none} /* hidden until backend exposes real recent_shares/locks */
+
+  svg.i{width:20px;height:20px;display:block}
 
   /* ── BOTTOM: top-50 owned players chart ── */
   .bottom{position:absolute;left:40px;right:40px;bottom:30px;height:230px;
@@ -224,7 +211,7 @@
   .nowplaying .txt{font-size:12px;font-weight:600;color:#fff}
   .nowplaying .txt span{color:var(--mute);font-weight:700;margin-right:6px;font-size:10px;letter-spacing:1px}
 
-  svg.i{width:20px;height:20px;display:block}
+  @keyframes slidein{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:translateX(0)}}
 </style>
 </head>
 <body>
@@ -249,18 +236,18 @@
       <div class="flow-node fees">
         <div class="fn-ic" style="color:var(--orange)"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg></div>
         <div class="fn-k">CREATOR FEES</div>
-        <div class="fn-v" id="feesTotal">◎0.0 SOL</div>
+        <div class="fn-v" id="feesTotal">◎— SOL</div>
         <div class="fn-sub">claimed to date</div>
       </div>
       <div class="flow-arrow">→</div>
       <div class="flow-split">
         <div class="sp sp1">
           <div class="sp-pct">60%</div><div class="sp-k">PRIZE POOL</div>
-          <div class="sp-v" id="sp60">◎0 SOL</div>
-          <div class="sp-lock" id="lockedLine">🔒 ◎0 SOL locked for the Final</div>
+          <div class="sp-v" id="sp60">◎— SOL</div>
+          <div class="sp-lock" id="lockedLine"></div>
         </div>
-        <div class="sp sp2"><div class="sp-pct">30%</div><div class="sp-k">GO BOUNTIES</div><div class="sp-v" id="sp30">◎0 SOL</div></div>
-        <div class="sp sp3"><div class="sp-pct">10%</div><div class="sp-k">MARKETING</div><div class="sp-v" id="sp10">◎0 SOL</div></div>
+        <div class="sp sp2"><div class="sp-pct">30%</div><div class="sp-k">GO BOUNTIES</div><div class="sp-v" id="sp30">◎— SOL</div></div>
+        <div class="sp sp3"><div class="sp-pct">10%</div><div class="sp-k">MARKETING</div><div class="sp-v" id="sp10">◎— SOL</div></div>
       </div>
     </div>
 
@@ -268,7 +255,7 @@
     <div class="claims">
       <div class="claims-hd">
         <span>⛓ DEV WALLET · FEE CLAIMS</span>
-        <span class="wallet" id="wallet">7xKp…q4Fz</span>
+        <span class="wallet" id="wallet">—</span>
       </div>
       <div class="claims-list" id="claims"></div>
     </div>
@@ -299,7 +286,7 @@
   <!-- PRIZE POOL -->
   <div class="pool">
     <div class="lbl">LIVE PRIZE POOL · PAID IN SOL TO TOP 100</div>
-    <div class="val">◎<b id="pool">312.4</b> SOL</div>
+    <div class="val">◎<b id="pool">—</b> SOL</div>
     <div class="meta" id="poolmeta">grows with every trade · funded by creator fees</div>
   </div>
 
@@ -307,13 +294,13 @@
   <div class="col-left">
     <div class="stat">
       <div class="k">COACHES JOINED</div>
-      <div class="v orange" id="coaches">8,420</div>
-      <div class="d" id="coachesd">▲ +0 just now</div>
+      <div class="v orange" id="coaches">—</div>
+      <div class="d" id="coachesd"></div>
     </div>
     <div class="stat">
       <div class="k">SQUADS BUILT</div>
-      <div class="v" id="squads">6,180</div>
-      <div class="d" id="squadsd">▲ +0 just now</div>
+      <div class="v" id="squads">—</div>
+      <div class="d" id="squadsd"></div>
     </div>
     <div class="milestones">
       <div class="hd">© MOST-CAPTAINED</div>
@@ -321,17 +308,18 @@
     </div>
   </div>
 
-  <!-- RIGHT COLUMN: on-chain + notifications -->
+  <!-- RIGHT COLUMN: on-chain -->
   <div class="col-right">
     <div class="chain">
       <div class="hd">⛓ $FANTABALL ON-CHAIN</div>
       <div class="grid">
-        <div class="cell"><div class="k">MARKET CAP</div><div class="v" id="mcap">$284K</div><div class="chg up" id="mcapc">+0.0%</div></div>
-        <div class="cell"><div class="k">VOLUME 24H</div><div class="v" id="vol">$41.2K</div><div class="chg up" id="volc">+0.0%</div></div>
-        <div class="cell"><div class="k">HOLDERS</div><div class="v" id="holders">1,847</div><div class="chg up" id="holdersc">+0</div></div>
-        <div class="cell"><div class="k">PRICE</div><div class="v" id="price">$0.00028</div><div class="chg up" id="pricec">+0.0%</div></div>
+        <div class="cell"><div class="k">MARKET CAP</div><div class="v" id="mcap">—</div><div class="chg" id="mcapc"></div></div>
+        <div class="cell"><div class="k">VOLUME 24H</div><div class="v" id="vol">—</div><div class="chg" id="volc"></div></div>
+        <div class="cell"><div class="k">HOLDERS</div><div class="v" id="holders">—</div><div class="chg" id="holdersc"></div></div>
+        <div class="cell"><div class="k">PRICE</div><div class="v" id="price">—</div><div class="chg" id="pricec"></div></div>
       </div>
     </div>
+    <!-- .notif hidden via CSS — re-enable when backend exposes real recent_shares/locks -->
     <div class="notif">
       <div class="hd">⚡ LIVE FEED</div>
       <div class="feed" id="feed"></div>
@@ -357,51 +345,19 @@
 
 <script>
 /* ════════════════════════════════════════════════════════════
-   MANUAL CONFIG — edit these before going live
+   CONFIG
    ════════════════════════════════════════════════════════════
-
-   DEMO  : true  = simulated data (safe to stream before launch)
-           false = live data from API_BASE every 5 s
-
-   API_BASE : your Railway backend URL (no trailing slash)
-              e.g. "https://fantaball-backend.up.railway.app"
-
-   DEV_WALLET  : your dev wallet address, abbreviated for display
-   POOL_WALLET : the prize-pool wallet address, abbreviated
-
-   BOUNTIES     : array of active pump.fun GO bounties shown on overlay
-   BOUNTY_TOTAL : total live bounty count (remainder shown as "+ N more")
+   API_BASE    : Railway backend URL (no trailing slash)
+   DEV_WALLET  : dev wallet address, abbreviated for display
+   POOL_WALLET : prize-pool wallet address, abbreviated
+   BOUNTIES    : array of active pump.fun GO bounties shown on overlay
+   BOUNTY_TOTAL: total live bounty count (remainder shown as "+ N more")
    ════════════════════════════════════════════════════════════ */
-const DEMO = !new URLSearchParams(location.search).has("live");
-const API_BASE = "https://fantaball-production.up.railway.app";
+const API_BASE    = "https://fantaball-production.up.railway.app";
+const DEV_WALLET  = ""; // ← paste real dev wallet (abbreviated), e.g. "7xKp…q4Fz"
+const POOL_WALLET = ""; // ← paste real pool wallet (abbreviated), e.g. "Fp9L…z7Qx"
 
-/* seed player pool for the top-50 chart + milestones */
-const PLAYERS = ["MBAPPE","HAALAND","BELLINGHAM","VINICIUS JR","SAKA","MUSIALA","RODRI","PEDRI","FODEN","KANE",
-"GRIEZMANN","SALAH","LAUTARO","WIRTZ","DE BRUYNE","VAN DIJK","RICE","ODEGAARD","GAVI","VALVERDE",
-"OSIMHEN","LEAO","KVARA","GVARDIOL","MAC ALLISTER","HAKIMI","THEO","UPAMECANO","DOKU","OLMO",
-"YAMAL","WILLIAMS","GULER","ENDRICK","CUBARSI","ZUBIMENDI","BARELLA","TONALI","FRIMPONG","MAINOO",
-"GORDON","PALMER","WATKINS","GAKPO","SZOBOSZLAI","KONATE","DIAZ","NUNEZ","KIMMICH","WIRTZ II"];
-
-let state = DEMO ? {
-  coaches: 8420, squads: 6180, pool: 312.4,
-  mcap: 284, vol: 41.2, holders: 1847, price: 0.00028,
-  owns: PLAYERS.map((n,i)=>({n, c: Math.round(4900*Math.exp(-i*0.075) + Math.random()*120)})),
-  caps: ["MBAPPE","HAALAND","SALAH","KANE","VINICIUS JR","LAUTARO","OSIMHEN","BELLINGHAM"]
-    .map((n,i)=>({n, c: Math.round(2100*Math.exp(-i*0.16) + Math.random()*60)})),
-  feesTotal: 520.8,
-  lockedTotal: 180.0,
-} : {
-  // Live mode: all fields start null/empty; first fetchLive() fills them in.
-  coaches: null, squads: null, pool: null,
-  mcap: null, vol: null, holders: null, price: null,
-  owns: [], caps: [],
-  feesTotal: 0, lockedTotal: 0,
-};
-const DEV_WALLET  = "7xKp…q4Fz"; // ← replace with your real dev wallet (abbreviated)
-const POOL_WALLET = "Fp9L…z7Qx"; // ← replace with your real pool wallet (abbreviated)
-
-/* active bounties on pump.fun GO (top ones shown; full list on go.pump.fun)
-   ← replace with real live bounties */
+/* active bounties on pump.fun GO — replace with real live bounties */
 const BOUNTIES = [
   {cat:"REACH",  t:"Spotlight Stream",  d:"Stream with the ticker on screen", rw:"◎1 SOL",   win:"1 winner"},
   {cat:"REACH",  t:"Viral Post",        d:"X post past 20k real views",        rw:"◎1 SOL",   win:"1 winner"},
@@ -409,18 +365,30 @@ const BOUNTIES = [
 ];
 const BOUNTY_TOTAL = 6; // ← set to total live bounty count
 
-const HANDLES = ["@justafoolgoy","@degenmike","@sol_sammy","@cryptowiz","@ftbl_chad","@apekeeper","@0xfrog",
-"@meta_messi","@gmgary","@onchain_oli","@pumpqueen","@vinnie_sol","@lambo_luca","@bagholder_b","@solsniper"];
-const PLAYERS_SHORT = PLAYERS.slice(0,30);
+/* ── STATE: all fields null/zero on boot; fetchLive() fills them ── */
+let state = {
+  coaches: null, squads: null, pool: null,
+  mcap: null, vol: null, holders: null, price: null,
+  owns: [], caps: [],
+  feesTotal: 0, lockedTotal: 0,
+};
 
+/* ── FORMATTERS ── */
 function fmt(n){ return n.toLocaleString("en-US"); }
 function fmtUsd(k){ return k>=1000 ? "$"+(k/1000).toFixed(2)+"M" : "$"+Math.round(k)+"K"; }
+/* fmtPrice: legible for micro-token prices (e.g. 2.4e-6 → "$0.0000024") */
+function fmtPrice(p){
+  if(p==null) return "—";
+  if(p<0.0001) return "$"+p.toFixed(10).replace(/\.?0+$/,"").slice(0,12);
+  if(p<1)      return "$"+p.toPrecision(4);
+  return "$"+p.toFixed(2);
+}
 
 /* ── RENDERERS ── */
 function renderChart(){
-  if (!state.owns.length) { document.getElementById("chart").innerHTML = ""; return; }
-  const max = Math.max(...state.owns.map(o=>o.c));
-  document.getElementById("chart").innerHTML = state.owns.slice(0,50).map(o=>`
+  if(!state.owns.length){ document.getElementById("chart").innerHTML=""; return; }
+  const max=Math.max(...state.owns.map(o=>o.c));
+  document.getElementById("chart").innerHTML=state.owns.slice(0,50).map(o=>`
     <div class="bar">
       <div class="nm">${o.n}</div>
       <div class="cnt">${o.c}</div>
@@ -428,11 +396,11 @@ function renderChart(){
     </div>`).join("");
 }
 function renderCaptains(){
-  if (!state.caps.length) { document.getElementById("capList").innerHTML = ""; return; }
-  const top = [...state.caps].sort((a,b)=>b.c-a.c).slice(0,4);
-  const totalCaps = state.caps.reduce((s,c)=>s+c.c,0);
-  document.getElementById("capList").innerHTML = top.map(o=>{
-    const pct = ((o.c/totalCaps)*100).toFixed(0);
+  if(!state.caps.length){ document.getElementById("capList").innerHTML=""; return; }
+  const top=[...state.caps].sort((a,b)=>b.c-a.c).slice(0,4);
+  const totalCaps=state.caps.reduce((s,c)=>s+c.c,0);
+  document.getElementById("capList").innerHTML=top.map(o=>{
+    const pct=((o.c/totalCaps)*100).toFixed(0);
     return `<div class="ms">
       <div class="badge">C</div>
       <div class="nm">${o.n}<div style="font-size:10px;color:var(--mute);font-weight:600;margin-top:1px">${pct}% of armbands</div></div>
@@ -442,49 +410,34 @@ function renderCaptains(){
 }
 function setText(id,v){ const e=document.getElementById(id); if(e) e.textContent=v; }
 function renderFees(){
-  setText("feesTotal","◎"+state.feesTotal.toFixed(1)+" SOL");
-  setText("sp60","◎"+(state.feesTotal*0.60).toFixed(1)+" SOL");
-  setText("sp30","◎"+(state.feesTotal*0.30).toFixed(1)+" SOL");
-  setText("sp10","◎"+(state.feesTotal*0.10).toFixed(1)+" SOL");
-  setText("wallet", DEV_WALLET);
-  setText("lockedLine","🔒 ◎"+state.lockedTotal.toFixed(0)+" SOL locked for the Final");
+  if(state.feesTotal>0){
+    setText("feesTotal","◎"+state.feesTotal.toFixed(1)+" SOL");
+    setText("sp60","◎"+(state.feesTotal*0.60).toFixed(1)+" SOL");
+    setText("sp30","◎"+(state.feesTotal*0.30).toFixed(1)+" SOL");
+    setText("sp10","◎"+(state.feesTotal*0.10).toFixed(1)+" SOL");
+  }
+  if(DEV_WALLET) setText("wallet", DEV_WALLET);
+  if(state.lockedTotal>0)
+    setText("lockedLine","🔒 ◎"+state.lockedTotal.toFixed(0)+" SOL locked for the Final");
+}
+function renderStats(){
+  setText("coaches", state.coaches!=null ? fmt(state.coaches) : "—");
+  setText("squads",  state.squads !=null ? fmt(state.squads)  : "—");
+  setText("pool",    state.pool   !=null ? state.pool.toFixed(1) : "—");
+  setText("mcap",    state.mcap   !=null ? fmtUsd(state.mcap)   : "—");
+  setText("vol",     state.vol    !=null ? fmtUsd(state.vol)    : "—");
+  setText("holders", state.holders!=null ? fmt(state.holders)   : "—");
+  setText("price",   fmtPrice(state.price));
 }
 
-// Called when you lock SOL into the dedicated pool wallet ahead of the Final.
-// Fires a claims-style entry + a feed notification (per the request).
-function pushLock(amt){
-  state.lockedTotal += amt;
-  renderFees();
-  const claimsEl=document.getElementById("claims");
-  const el=document.createElement("div");
-  el.className="claim";
-  const t=new Date();
-  const hh=String(t.getHours()).padStart(2,"0"), mm=String(t.getMinutes()).padStart(2,"0"), ss=String(t.getSeconds()).padStart(2,"0");
-  el.innerHTML=`
-    <div class="cic" style="background:rgba(78,255,167,.16);color:#4effa7">
-      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
-    <div class="cbody">
-      <div class="camt">◎${amt.toFixed(2)} <span style="color:#4effa7">LOCKED</span></div>
-      <div class="cmeta">moved to pool wallet ${POOL_WALLET} · held until the Final</div>
-    </div>
-    <div style="text-align:right"><div class="ctime">${hh}:${mm}:${ss}</div><div class="ctx">total ◎${state.lockedTotal.toFixed(0)}</div></div>`;
-  claimsEl.prepend(el);
-  while(claimsEl.children.length>2) claimsEl.removeChild(claimsEl.lastChild);
-  pushFeed(`🔒 <b>◎${amt.toFixed(0)}</b> locked for the Final · pool secured`, false);
-}
-function renderBounties(){
-  document.getElementById("bounties").innerHTML = BOUNTIES.map(b=>`
-    <div class="bounty">
-      <span class="bcat">${b.cat}</span>
-      <div class="bt">${b.t}</div>
-      <div class="bd">${b.d}</div>
-      <div class="bf"><span class="brw">${b.rw}</span><span class="bwin">${b.win}</span></div>
-    </div>`).join("");
-  const more = BOUNTY_TOTAL - BOUNTIES.length;
-  setText("bountiesMore", `+${more} more on go.pump.fun · fantaball.tech`);
-}
-function randomTx(){ return Math.random().toString(36).slice(2,6)+"…"+Math.random().toString(36).slice(2,6); }
+/* ── REAL EVENTS (call these manually when actual on-chain events happen) ──
+   pushClaim(amt)  : dev wallet claimed amt SOL in fees  → updates fee split display
+   pushLock(amt)   : SOL locked into pool wallet          → updates locked total
+   pushFeed(html)  : add an item to the live feed         → only visible if .notif is un-hidden
+*/
 function pushClaim(amt){
+  state.feesTotal += amt;
+  renderFees();
   const claimsEl=document.getElementById("claims");
   const el=document.createElement("div");
   el.className="claim";
@@ -496,173 +449,122 @@ function pushClaim(amt){
       <div class="camt">◎${amt.toFixed(2)} <span>CLAIMED</span></div>
       <div class="cmeta">split → ◎${(amt*0.6).toFixed(2)} pool · ◎${(amt*0.3).toFixed(2)} GO · ◎${(amt*0.1).toFixed(2)} mkt</div>
     </div>
-    <div style="text-align:right">
-      <div class="ctime">${hh}:${mm}:${ss}</div>
-      <div class="ctx">tx ${randomTx()}</div>
-    </div>`;
+    <div style="text-align:right"><div class="ctime">${hh}:${mm}:${ss}</div></div>`;
   claimsEl.prepend(el);
   while(claimsEl.children.length>2) claimsEl.removeChild(claimsEl.lastChild);
 }
-function renderStats(){
-  setText("coaches", state.coaches != null ? fmt(state.coaches) : "—");
-  setText("squads",  state.squads  != null ? fmt(state.squads)  : "—");
-  setText("pool",    state.pool    != null ? state.pool.toFixed(1) : "—");
-  setText("mcap",    state.mcap    != null ? fmtUsd(state.mcap)   : "—");
-  setText("vol",     state.vol     != null ? fmtUsd(state.vol)    : "—");
-  setText("holders", state.holders != null ? fmt(state.holders)   : "—");
-  setText("price",   state.price   != null ? "$"+state.price.toFixed(5) : "—");
+function pushLock(amt){
+  state.lockedTotal+=amt;
+  renderFees();
+  const claimsEl=document.getElementById("claims");
+  const el=document.createElement("div");
+  el.className="claim";
+  const t=new Date();
+  const hh=String(t.getHours()).padStart(2,"0"), mm=String(t.getMinutes()).padStart(2,"0"), ss=String(t.getSeconds()).padStart(2,"0");
+  el.innerHTML=`
+    <div class="cic" style="background:rgba(78,255,167,.16);color:#4effa7">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+    <div class="cbody">
+      <div class="camt">◎${amt.toFixed(2)} <span style="color:#4effa7">LOCKED</span></div>
+      <div class="cmeta">moved to pool wallet${POOL_WALLET?" "+POOL_WALLET:""} · held until the Final</div>
+    </div>
+    <div style="text-align:right"><div class="ctime">${hh}:${mm}:${ss}</div><div class="ctx">total ◎${state.lockedTotal.toFixed(0)}</div></div>`;
+  claimsEl.prepend(el);
+  while(claimsEl.children.length>2) claimsEl.removeChild(claimsEl.lastChild);
+  pushFeed(`🔒 <b>◎${amt.toFixed(0)}</b> locked for the Final · pool secured`, false);
 }
-
-/* live feed */
-const feed = document.getElementById("feed");
 function pushFeed(html, isX){
-  const el = document.createElement("div");
-  el.className = "card" + (isX?" x":"");
-  el.innerHTML = `
+  const feed=document.getElementById("feed");
+  const el=document.createElement("div");
+  el.className="card"+(isX?" x":"");
+  el.innerHTML=`
     <div class="ci">${isX
-      ? '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M4 4l7 9M20 20l-7.5-9.7M4 20l6-6.5M20 4l-6.2 6.8"/></svg>'
-      : '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>'}</div>
+      ?'<svg class="i" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M4 4l7 9M20 20l-7.5-9.7M4 20l6-6.5M20 4l-6.2 6.8"/></svg>'
+      :'<svg class="i" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>'}</div>
     <div class="body"><div class="t">${html}</div><div class="ago">just now</div></div>`;
   feed.prepend(el);
-  // age older items, cap to 7
   [...feed.children].forEach((c,i)=>{ if(i>0){ const a=c.querySelector(".ago"); if(a&&a.textContent==="just now") a.textContent=(i*7)+"s ago"; }});
   while(feed.children.length>7) feed.removeChild(feed.lastChild);
 }
 
-/* ── SIMULATION (DEMO) ── */
-function tick(){
-  // counters drift up
-  const dC = Math.floor(Math.random()*4);
-  const dS = Math.floor(Math.random()*3);
-  state.coaches += dC; state.squads += dS;
-  if(dC) setText("coachesd","▲ +"+dC+" just now");
-  if(dS) setText("squadsd","▲ +"+dS+" just now");
-  // pool + chain wiggle
-  state.pool += Math.random()*0.4;
-  state.vol += (Math.random()-0.3)*0.8;
-  state.mcap += (Math.random()-0.3)*1.5;
-  if(Math.random()<0.25) state.holders += 1;
-  state.price = state.mcap/1000000*3.5/1000 + 0.00026;
-  setText("mcapc", (state.mcap>=284?"+":"")+(((state.mcap-284)/284*100).toFixed(1))+"%");
-  setText("volc", (state.vol>=41.2?"+":"")+(((state.vol-41.2)/41.2*100).toFixed(1))+"%");
-  setText("holdersc", "+"+(state.holders-1847));
-  setText("pricec", (state.price>=0.00028?"+":"")+(((state.price-0.00028)/0.00028*100).toFixed(1))+"%");
-  document.getElementById("mcapc").className="chg "+(state.mcap>=284?"up":"down");
-  document.getElementById("volc").className="chg "+(state.vol>=41.2?"up":"down");
-  document.getElementById("pricec").className="chg "+(state.price>=0.00028?"up":"down");
-  // a player gets picked
-  const idx = Math.floor(Math.random()*Math.min(20,state.owns.length));
-  state.owns[idx].c += Math.floor(Math.random()*3)+1;
-  state.owns.sort((a,b)=>b.c-a.c);
-  // a captain gets chosen
-  if(Math.random()<0.6){
-    const ci = Math.floor(Math.random()*state.caps.length);
-    state.caps[ci].c += Math.floor(Math.random()*2)+1;
-  }
-  renderStats(); renderChart(); renderCaptains();
+function renderBounties(){
+  document.getElementById("bounties").innerHTML=BOUNTIES.map(b=>`
+    <div class="bounty">
+      <span class="bcat">${b.cat}</span>
+      <div class="bt">${b.t}</div>
+      <div class="bd">${b.d}</div>
+      <div class="bf"><span class="brw">${b.rw}</span><span class="bwin">${b.win}</span></div>
+    </div>`).join("");
+  const more=BOUNTY_TOTAL-BOUNTIES.length;
+  if(more>0) setText("bountiesMore",`+${more} more on go.pump.fun · fantaball.tech`);
 }
 
-function randomEvent(){
-  const r = Math.random();
-  if(r < 0.4){
-    const h = HANDLES[Math.floor(Math.random()*HANDLES.length)];
-    pushFeed(`<b>${h}</b> just shared their squad on X`, true);
-  } else if(r < 0.7){
-    const p = PLAYERS_SHORT[Math.floor(Math.random()*PLAYERS_SHORT.length)];
-    const o = state.owns.find(x=>x.n===p);
-    pushFeed(`<b>${p}</b> picked by ${o?fmt(o.c):"—"} coaches`, false);
-  } else if(r < 0.88){
-    pushFeed(`A new coach just built squad #<b>${fmt(state.squads)}</b>`, false);
-  } else {
-    pushFeed(`Prize pool crossed <b>◎${state.pool.toFixed(0)}</b>`, false);
-  }
-}
-
-/* clock + day counter (h24 stream, day 1-3) */
-const startTs = Date.now();
+/* ── CLOCK ── */
+const startTs=Date.now();
 function clock(){
-  const t = Math.floor((Date.now()-startTs)/1000);
-  const hh = String(Math.floor(t/3600)%24).padStart(2,"0");
-  const mm = String(Math.floor(t/60)%60).padStart(2,"0");
-  const ss = String(t%60).padStart(2,"0");
-  document.getElementById("clock").childNodes[0].nodeValue = `${hh}:${mm}:${ss} `;
-  const day = Math.min(3, Math.floor(t/86400)+1);
-  setText("upday", "DAY "+day);
+  const t=Math.floor((Date.now()-startTs)/1000);
+  const hh=String(Math.floor(t/3600)%24).padStart(2,"0");
+  const mm=String(Math.floor(t/60)%60).padStart(2,"0");
+  const ss=String(t%60).padStart(2,"0");
+  document.getElementById("clock").childNodes[0].nodeValue=`${hh}:${mm}:${ss} `;
+  const day=Math.min(3,Math.floor(t/86400)+1);
+  setText("upday","DAY "+day);
 }
 
-/* ── LIVE MODE ── */
+/* ── LIVE FETCH (every 5s) ── */
 async function fetchLive(){
-  try {
-    const r = await fetch(`${API_BASE}/public/stream/state`);
-    if (!r.ok) return;
-    const d = await r.json();
+  try{
+    const r=await fetch(`${API_BASE}/public/stream/state`);
+    if(!r.ok) return;
+    const d=await r.json();
 
     // coaches / squads — show delta since last fetch
-    if (d.coaches != null) {
-      const dC = state.coaches != null ? d.coaches - state.coaches : 0;
-      state.coaches = d.coaches;
-      if (dC > 0) setText("coachesd", "▲ +" + dC + " just now");
+    if(d.coaches!=null){
+      const dC=state.coaches!=null ? d.coaches-state.coaches : 0;
+      state.coaches=d.coaches;
+      if(dC>0) setText("coachesd","▲ +"+dC+" just now");
     }
-    if (d.squads != null) {
-      const dS = state.squads != null ? d.squads - state.squads : 0;
-      state.squads = d.squads;
-      if (dS > 0) setText("squadsd", "▲ +" + dS + " just now");
+    if(d.squads!=null){
+      const dS=state.squads!=null ? d.squads-state.squads : 0;
+      state.squads=d.squads;
+      if(dS>0) setText("squadsd","▲ +"+dS+" just now");
     }
 
     // on-chain: DexScreener returns raw USD; state stores in thousands for fmtUsd()
-    const prev = { mcap: state.mcap, vol: state.vol, price: state.price, holders: state.holders };
-    if (d.price   != null) state.price   = d.price;
-    if (d.mcap    != null) state.mcap    = d.mcap / 1000;   // USD → K
-    if (d.vol     != null) state.vol     = d.vol  / 1000;   // USD → K
-    if (d.holders != null) state.holders = d.holders;
-    if (d.pool    != null) state.pool    = d.pool;
-    if (d.locked  != null) { state.lockedTotal = d.locked; renderFees(); }
+    const prev={mcap:state.mcap,vol:state.vol,price:state.price,holders:state.holders};
+    if(d.price  !=null) state.price  =d.price;
+    if(d.mcap   !=null) state.mcap   =d.mcap/1000;  // USD → K
+    if(d.vol    !=null) state.vol    =d.vol/1000;   // USD → K
+    if(d.holders!=null) state.holders=d.holders;
+    if(d.pool   !=null) state.pool   =d.pool;
+    if(d.locked !=null){ state.lockedTotal=d.locked; renderFees(); }
 
     // top-50 owns and captains (only override if non-empty — view may not exist yet)
-    if (d.owns && d.owns.length) state.owns = d.owns;
-    if (d.caps && d.caps.length) state.caps = d.caps;
+    if(d.owns&&d.owns.length) state.owns=d.owns;
+    if(d.caps&&d.caps.length) state.caps=d.caps;
 
-    // change badges (compare to previous fetch; skip on first call)
-    function badge(id, cur, old) {
-      if (cur == null || old == null) return;
-      const pct = ((cur - old) / old * 100).toFixed(1);
-      setText(id, (cur >= old ? "+" : "") + pct + "%");
-      document.getElementById(id).className = "chg " + (cur >= old ? "up" : "down");
+    // change badges (compare to previous fetch; skip on first call when prev is null)
+    function badge(id,cur,old){
+      if(cur==null||old==null) return;
+      const pct=((cur-old)/old*100).toFixed(1);
+      setText(id,(cur>=old?"+":"")+pct+"%");
+      document.getElementById(id).className="chg "+(cur>=old?"up":"down");
     }
-    badge("mcapc",   state.mcap,    prev.mcap);
-    badge("volc",    state.vol,     prev.vol);
-    badge("pricec",  state.price,   prev.price);
-    if (prev.holders != null && state.holders != null)
-      setText("holdersc", "+" + (state.holders - prev.holders));
+    badge("mcapc", state.mcap,  prev.mcap);
+    badge("volc",  state.vol,   prev.vol);
+    badge("pricec",state.price, prev.price);
+    if(prev.holders!=null&&state.holders!=null)
+      setText("holdersc","+"+(state.holders-prev.holders));
 
     renderStats(); renderChart(); renderCaptains();
-  } catch(e) { /* keep last good state */ }
+  }catch(e){ /* keep last good state on error */ }
 }
 
 /* ── BOOT ── */
 renderStats(); renderChart(); renderCaptains(); renderFees(); renderBounties();
-for(let i=0;i<4;i++) setTimeout(randomEvent, i*600);
-// seed a couple of recent claims
-[2.4, 3.1].forEach((a,i)=>setTimeout(()=>pushClaim(a), 400+i*500));
 setInterval(clock, 1000);
-if(DEMO){
-  setInterval(tick, 1800);
-  setInterval(randomEvent, 3400);
-  // dev-wallet claim every ~22s
-  setInterval(()=>{
-    const amt = 1.5 + Math.random()*3.5;
-    state.feesTotal += amt;
-    renderFees();
-    pushClaim(amt);
-    pushFeed(`Dev wallet claimed <b>◎${amt.toFixed(2)}</b> in fees → pool +◎${(amt*0.6).toFixed(2)}`, false);
-  }, 22000);
-  // periodic SOL lock toward the Final (~every 70s in demo; in production you
-  // trigger this when you actually lock funds in the pool wallet)
-  setInterval(()=>{ pushLock(10 + Math.round(Math.random()*15)); }, 70000);
-  setTimeout(()=>pushLock(12), 9000); // one early lock so it's visible on load
-}else{
-  setInterval(fetchLive, 5000);
-}
+fetchLive();                    // immediate first fetch
+setInterval(fetchLive, 5000);  // then every 5s
 </script>
 </body>
 </html>
