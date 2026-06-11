@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, createContext, useContext } from "react";
 import { toPng } from "html-to-image";
 import { getPlayers, getLeaderboard, saveRoster, getMyRoster, saveLineup, getLineup, getFixtures, getScorers, getAssists, getCards, getStandings, getBracket, getBounties, HAS_SUPABASE, computeFormationLock, PLAYERS, getMyCountry, saveCountry } from "./lib/data";
+import { getStreamState } from "./lib/api";
 import { COUNTRIES } from "./lib/countries";
 import { initAuth, onAuthChange, signInWithX, signOut, connectWallet } from "./lib/auth";
 import { supabase } from "./lib/supabase";
@@ -86,9 +87,25 @@ function rankBadge(rank){
   return null;
 }
 
+// ── Token metric formatters ──────────────────────────────────────────────
+// fmtK: formats a number as "$2.4K" or "$1.2M" for mcap/vol; null → "—"
+function fmtK(n){
+  if(n==null) return "—";
+  if(n>=1_000_000) return "$"+(n/1_000_000).toFixed(n>=10_000_000?0:1)+"M";
+  if(n>=1_000)     return "$"+(n/1_000).toFixed(n>=10_000?0:1)+"K";
+  return "$"+n.toFixed(0);
+}
+// fmtPrice: shows micro-token prices legibly (e.g. 2.4e-6 → "$0.0000024")
+function fmtPrice(p){
+  if(p==null) return "—";
+  if(p<0.0001) return "$"+p.toFixed(10).replace(/\.?0+$/,"").slice(0,12);
+  if(p<1)      return "$"+p.toPrecision(4);
+  return "$"+p.toFixed(2);
+}
+
 // derive an absolute "picked by N coaches" count from ownership %
-const TOTAL_COACHES = 8420;
-function pickedBy(own){ return Math.round((own/100)*TOTAL_COACHES); }
+// totalCoaches is passed in from live stream state; falls back to null → hidden
+function pickedBy(own, totalCoaches){ return totalCoaches ? Math.round((own/100)*totalCoaches) : null; }
 
 /* ── SOCIAL / CONTACT LINKS ──────────────────────────────────────────────
    Fill a `url` to make its button appear. Empty url = button hidden.
@@ -118,6 +135,11 @@ const DEXSCREENER_URL = "";
 // PlayersContext provides the real player list (from bundled PLAYERS or live DB).
 const PlayersContext = createContext(PLAYERS);
 const usePlayers = () => useContext(PlayersContext);
+
+// StreamStateContext: live on-chain + game aggregate data from /public/stream/state.
+// null = not yet loaded; {coaches, squads, mcap, price, vol, holders, ...} when ready.
+const StreamStateContext = createContext(null);
+const useStreamState = () => useContext(StreamStateContext);
 
 const BUDGET = 700;
 const SQUAD_RULES = { GK:2, DF:5, MF:6, FW:3 };
@@ -411,7 +433,10 @@ export default function App(){
       const picks=squad.map(id=>{const p=players.find(x=>x.id===id);return {id,pr:p?.pr||0};});
       saveRoster(u.id, picks, {name:teamName, budget_spent:spent})
         .then(r=>{
-          const canWriteLineup = r?.id && starters.length===11 && (!formationLock || formationLock.canEdit !== false);
+          const canWriteLineup = r?.id && starters.length===11
+            && captain && starters.includes(captain)
+            && vice    && starters.includes(vice)
+            && (!formationLock || formationLock.canEdit !== false);
           if(canWriteLineup){
             saveLineup(r.id, GW, {starters, bench:squad.filter(id=>!starters.includes(id)), captainId:captain, viceId:vice})
               .catch(e=>console.warn("saveLineup:",e?.message||e));
@@ -441,6 +466,14 @@ export default function App(){
       return ok?valid:autoStarters(squad,formation);
     });
   },[squad,formation,players]);
+
+  // Clear captain/vice if they are no longer starters (e.g. after formation change or player removal).
+  // Must be a separate effect so it reads the committed starters value, not the in-flight callback.
+  useEffect(()=>{
+    if(starters.length===0) return;
+    if(captain!=null && !starters.includes(captain)) setCaptain(null);
+    if(vice!=null    && !starters.includes(vice))    setVice(null);
+  },[starters]);
 
   const benchIds=useMemo(()=>squad.filter(id=>!starters.includes(id)),[squad,starters]);
 
@@ -512,7 +545,20 @@ export default function App(){
     formation,setFormation,starters,benchIds,promote,setCap,setVc,
     swapPlayers, authUser, GW, formationLock};
 
+  // Stream state: global poll every 30s, shared via context
+  const [streamState,setStreamState]=useState(null);
+  useEffect(()=>{
+    let cancelled=false;
+    async function poll(){
+      try{ const s=await getStreamState(); if(!cancelled) setStreamState(s); }catch(_){}
+    }
+    poll();
+    const id=setInterval(poll,30_000);
+    return ()=>{ cancelled=true; clearInterval(id); };
+  },[]);
+
   return (
+    <StreamStateContext.Provider value={streamState}>
     <PlayersContext.Provider value={players}>
     <div style={S.app} className="app-shell">
       <Fonts/>
@@ -551,6 +597,7 @@ export default function App(){
       <Style/>
     </div>
     </PlayersContext.Provider>
+    </StreamStateContext.Provider>
   );
 }
 
@@ -913,6 +960,9 @@ function Build({squad,counts,spent,budget,toggle,captain,setCaptain,vice,setVice
 }
 
 function MarketCard({p,owned,canAdd,reason,onTap}){
+  const stream=useStreamState();
+  const coaches=stream?.coaches ?? null;
+  const pickedCount=pickedBy(p.own,coaches);
   return (
     <div onClick={(owned||canAdd)?onTap:undefined} style={{
       display:"flex",alignItems:"center",gap:12,padding:"12px 14px",marginBottom:8,
@@ -935,10 +985,12 @@ function MarketCard({p,owned,canAdd,reason,onTap}){
         <div style={{fontSize:12,color:C.mute,marginTop:1}}>{p.c}</div>
         <div style={{display:"flex",gap:10,marginTop:4,alignItems:"center",flexWrap:"wrap"}}>
           <span style={{fontSize:11,fontWeight:700,color:C.orangeDeep}}>{p.pts} pts</span>
-          <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:C.mute}}>
-            <Icon name="users" size={12} style={{color:C.mute}}/>
-            picked by {pickedBy(p.own).toLocaleString()}
-          </span>
+          {pickedCount!=null && (
+            <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:C.mute}}>
+              <Icon name="users" size={12} style={{color:C.mute}}/>
+              picked by {pickedCount.toLocaleString()}
+            </span>
+          )}
         </div>
       </div>
       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0}}>
@@ -958,6 +1010,8 @@ function MarketCard({p,owned,canAdd,reason,onTap}){
 }
 
 function MySquad({squad,captain,setCaptain,vice,setVice,toggle,spent,setTab}){
+  const stream=useStreamState();
+  const coaches=stream?.coaches ?? null;
   if(!squad.length) return (
     <div style={{textAlign:"center",padding:"60px 30px",color:C.mute}}>
       <div style={{display:"flex",justifyContent:"center",marginBottom:16,color:C.line}}><Icon name="ball" size={48} stroke={1.6}/></div>
@@ -984,9 +1038,11 @@ function MySquad({squad,captain,setCaptain,vice,setVice,toggle,spent,setTab}){
                   <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:800,fontSize:14,color:C.ink}}>{p.n}</div>
                   <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.mute,marginTop:1}}>
                     <span>{p.c} · <Icon name="credit" size={12} style={{marginRight:2,verticalAlign:"baseline"}}/>{p.pr}</span>
-                    <span style={{display:"inline-flex",alignItems:"center",gap:3}}>
-                      <Icon name="users" size={11} style={{color:C.mute}}/>{pickedBy(p.own).toLocaleString()}
-                    </span>
+                    {pickedBy(p.own,coaches)!=null && (
+                      <span style={{display:"inline-flex",alignItems:"center",gap:3}}>
+                        <Icon name="users" size={11} style={{color:C.mute}}/>{pickedBy(p.own,coaches).toLocaleString()}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button onClick={()=>{setCaptain(captain===p.id?null:p.id);if(vice===p.id)setVice(null);}}
@@ -1227,6 +1283,14 @@ function Pitch({squad,captain,vice,jersey,setJersey,teamName,setTeamName,country
       setSaveError(!captain && !vice ? "Set captain and vice-captain before saving"
                    : !captain ? "Set a captain before saving"
                    : "Set a vice-captain before saving");
+      setTimeout(()=>{ setSaveStatus(null); setSaveError(null); }, 3000);
+      return;
+    }
+    if(!starters.includes(captain) || !starters.includes(vice)){
+      setSaveStatus("error");
+      setSaveError(!starters.includes(captain)
+        ? "Captain must be a starter — tap a field player to assign"
+        : "Vice-captain must be a starter — tap a field player to assign");
       setTimeout(()=>{ setSaveStatus(null); setSaveError(null); }, 3000);
       return;
     }
@@ -2159,6 +2223,8 @@ function Quests(){
 
 function Token(){
   const [holdInfo,setHoldInfo]=useState(false);
+  const onchain=useStreamState(); // live from /public/stream/state via global context
+
   // ── Transparency config — fill with the REAL dedicated fee/pool wallet + movements.
   // Until POOL_WALLET is set to a real address, the Solscan link is hidden and the
   // ledger shows an honest "not yet" state instead of fabricated transactions.
@@ -2170,10 +2236,10 @@ function Token(){
   ];
   const solscanAddr = POOL_WALLET ? `https://solscan.io/account/${POOL_WALLET}` : null;
   const stats=[
-    {l:"MARKET CAP",v:"$284K",s:"fully diluted"},
-    {l:"HOLDERS",v:"1,847",s:"+23 today"},
-    {l:"VOLUME 24H",v:"$41.2K",s:"Pump.fun"},
-    {l:"FEES TO POOL",v:"LIVE",s:"60% of fees"},
+    {l:"MARKET CAP",v:fmtK(onchain?.mcap),s:"fully diluted"},
+    {l:"HOLDERS",   v:onchain?.holders!=null ? onchain.holders.toLocaleString() : "—", s:"token holders"},
+    {l:"PRICE",     v:fmtPrice(onchain?.price), s:"$FANTABALL"},
+    {l:"VOLUME 24H",v:fmtK(onchain?.vol),s:"Pump.fun"},
   ];
   const feeSplit=[
     {pct:60,label:"PRIZE POOL",sub:"top 100 in SOL",color:C.orange},
@@ -2189,10 +2255,14 @@ function Token(){
           <div style={{fontSize:11,color:"#ffffff99",letterSpacing:2.5,fontWeight:700}}>LIVE PRIZE POOL</div>
           <div style={{fontFamily:"'Archivo',sans-serif",fontWeight:900,fontSize:36,color:"#fff",lineHeight:1,marginTop:4}}>Prize Pool</div>
           <div style={{fontSize:13,color:"#ffffffcc",marginTop:8,lineHeight:1.5}}>Grows with every trade · paid in SOL to top 100</div>
-          <div style={{height:6,background:"#ffffff22",borderRadius:6,overflow:"hidden",marginTop:14}}>
-            <div style={{height:"100%",width:"71%",background:C.orange,borderRadius:6}}/>
-          </div>
-          <div style={{fontSize:11,color:"#ffffff99",marginTop:5}}>71% toward GW3 target</div>
+          {onchain?.locked!=null && (
+            <>
+              <div style={{height:6,background:"#ffffff22",borderRadius:6,overflow:"hidden",marginTop:14}}>
+                <div style={{height:"100%",width:Math.min(100,Math.round(onchain.locked))+"%",background:C.orange,borderRadius:6}}/>
+              </div>
+              <div style={{fontSize:11,color:"#ffffff99",marginTop:5}}>{fmtK(onchain.locked)} locked in pool</div>
+            </>
+          )}
           {solscanAddr ? (
             <a href={solscanAddr} target="_blank" rel="noopener noreferrer" style={S.solscanLink}>
               <Icon name="chain" size={14}/> Track the fee wallet on Solscan
