@@ -372,8 +372,8 @@
    BOUNTIES     : array of active pump.fun GO bounties shown on overlay
    BOUNTY_TOTAL : total live bounty count (remainder shown as "+ N more")
    ════════════════════════════════════════════════════════════ */
-const DEMO     = true;   // ← set false when live
-const API_BASE = "https://api.fantaball.tech"; // ← replace with real Railway URL
+const DEMO = !new URLSearchParams(location.search).has("live");
+const API_BASE = "https://fantaball-production.up.railway.app";
 
 /* seed player pool for the top-50 chart + milestones */
 const PLAYERS = ["MBAPPE","HAALAND","BELLINGHAM","VINICIUS JR","SAKA","MUSIALA","RODRI","PEDRI","FODEN","KANE",
